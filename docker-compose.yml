@@ -1,0 +1,23 @@
+services:
+  backend:
+    build: ./backend
+    container_name: kb-backend
+    volumes:
+      - ./data/files:/data/files
+      - ./data/db:/data/db
+    environment:
+      - KB_JWT_SECRET=请修改为强随机值
+      - KB_ADMIN_USERNAME=admin
+      - KB_ADMIN_PASSWORD=admin123
+      - KB_STORAGE_DIR=/data/files
+      - KB_DB_PATH=/data/db/kb.sqlite
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: kb-frontend
+    ports:
+      - "8000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
