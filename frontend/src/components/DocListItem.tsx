@@ -1,4 +1,4 @@
-import { FileTextOutlined, Html5Outlined } from '@ant-design/icons'
+import { FileTextOutlined, Html5Outlined, ShareAltOutlined } from '@ant-design/icons'
 import { formatSize, relativeTime } from '../utils/format'
 import type { DocumentItem } from '../api/client'
 
@@ -9,9 +9,10 @@ interface Props {
   active: boolean
   onClick: () => void
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
+  onShare?: (doc: DocumentItem) => void
 }
 
-export default function DocListItem({ doc, active, onClick, dragHandleProps }: Props) {
+export default function DocListItem({ doc, active, onClick, dragHandleProps, onShare }: Props) {
   const isMd = doc.ext === '.md'
   const tags = doc.tags?.split(',').map(t => t.trim()).filter(Boolean) ?? []
   return (
@@ -41,6 +42,12 @@ export default function DocListItem({ doc, active, onClick, dragHandleProps }: P
           )}
         </div>
       </div>
+      {onShare && (
+        <ShareAltOutlined
+          className="doc-share-btn"
+          onClick={(e) => { e.stopPropagation(); onShare(doc) }}
+        />
+      )}
     </div>
   )
 }

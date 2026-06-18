@@ -28,6 +28,12 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+        # 迁移：Document 加 share_token 列（已有数据库兼容）
+        from sqlalchemy import text
+        cols = (await conn.execute(text("PRAGMA table_info(document)"))).fetchall()
+        col_names = [c[1] for c in cols]
+        if "share_token" not in col_names:
+            await conn.execute(text("ALTER TABLE document ADD COLUMN share_token TEXT"))
         # 开启 WAL，提升 SQLite 并发读性能
         await conn.execute(__import__("sqlalchemy").text("PRAGMA journal_mode=WAL"))
         # FTS5 全文索引虚表

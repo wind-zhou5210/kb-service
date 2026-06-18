@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip, Select } from 'antd'
+import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip, Select, message } from 'antd'
 import {
   ArrowLeftOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined,
   MoreOutlined, SearchOutlined, FileTextOutlined, Html5Outlined, FolderOutlined, EditOutlined,
+  FullscreenOutlined, FullscreenExitOutlined, StopOutlined,
 } from '@ant-design/icons'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -19,15 +20,17 @@ import DocToc, { type TocItem } from '../components/DocToc'
 import UploadModal from '../components/UploadModal'
 import EmptyState from '../components/EmptyState'
 import { formatSize, relativeTime } from '../utils/format'
+import { copyToClipboard } from '../utils/clipboard'
 
 const { TextArea } = Input
 
 const TAG_COLORS = ['blue', 'green', 'orange', 'purple', 'cyan', 'magenta', 'gold']
 
-function SortableDoc({ doc, active, onClick }: {
+function SortableDoc({ doc, active, onClick, onShare }: {
   doc: DocumentItem
   active: boolean
   onClick: () => void
+  onShare: (doc: DocumentItem) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: doc.id })
   const style = {
@@ -37,7 +40,7 @@ function SortableDoc({ doc, active, onClick }: {
   }
   return (
     <div ref={setNodeRef} style={style}>
-      <DocListItem doc={doc} active={active} onClick={onClick} dragHandleProps={{ ...attributes, ...listeners }} />
+      <DocListItem doc={doc} active={active} onClick={onClick} onShare={onShare} dragHandleProps={{ ...attributes, ...listeners }} />
     </div>
   )
 }
@@ -62,8 +65,20 @@ export default function CollectionDetail() {
   const [editNote, setEditNote] = useState('')
   const [search, setSearch] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
+  const [fullscreen, setFullscreen] = useState(false)
+  const [shareDocModal, setShareDocModal] = useState<DocumentItem | null>(null)
+  const [shareDocUrl, setShareDocUrl] = useState('')
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+
+  useEffect(() => {
+    if (!fullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fullscreen])
 
   const loadDocs = useCallback(async () => {
     setLoading(true)
@@ -155,10 +170,24 @@ export default function CollectionDetail() {
     )
   }
 
+  const handleDocShare = async (doc: DocumentItem) => {
+    const { share_token } = await api.createDocShareLink(doc.id)
+    setShareDocUrl(`${window.location.origin}/share/doc/${share_token}`)
+    setShareDocModal(doc)
+    loadDocs()
+  }
+
+  const copyDocShareUrl = async () => {
+    const ok = await copyToClipboard(shareDocUrl)
+    if (ok) message.success('链接已复制')
+    else message.warning('复制失败，请手动选中链接复制')
+  }
+
   const dropdownItems = (doc: DocumentItem) => ({
     items: [
       { key: 'edit', label: '编辑详情', icon: <EditOutlined />, onClick: () => openEdit(doc) },
       { key: 'download', label: '下载', icon: <DownloadOutlined />, onClick: () => window.open(`/api/documents/${doc.id}/download`) },
+      ...(doc.share_token ? [{ key: 'revokeShare', label: '取消分享', icon: <StopOutlined />, onClick: async () => { await api.revokeDocShare(doc.id); message.success('已取消分享'); loadDocs() } }] : []),
       { type: 'divider' as const },
       { key: 'delete', label: '删除', icon: <DeleteOutlined />, danger: true, onClick: () => handleDelete(doc) },
     ],
@@ -239,7 +268,7 @@ export default function CollectionDetail() {
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={filteredDocs.map(d => d.id)} strategy={verticalListSortingStrategy}>
                 {filteredDocs.map((doc) => (
-                  <SortableDoc key={doc.id} doc={doc} active={selected?.id === doc.id} onClick={() => viewDoc(doc)} />
+                  <SortableDoc key={doc.id} doc={doc} active={selected?.id === doc.id} onClick={() => viewDoc(doc)} onShare={handleDocShare} />
                 ))}
               </SortableContext>
             </DndContext>
@@ -273,6 +302,9 @@ export default function CollectionDetail() {
                   </span>
                 </Space>
                 <Space>
+                  <Tooltip title="全屏阅读">
+                    <Button type="text" size="small" icon={<FullscreenOutlined />} onClick={() => setFullscreen(true)} />
+                  </Tooltip>
                   <Tooltip title="下载">
                     <Button type="text" size="small" icon={<DownloadOutlined />} onClick={() => window.open(`/api/documents/${selected.id}/download`)} />
                   </Tooltip>
@@ -306,6 +338,28 @@ export default function CollectionDetail() {
         )}
       </main>
 
+      {fullscreen && selected && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--surface)',
+          display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{
+            flexShrink: 0, height: 48, borderBottom: '1px solid var(--border)',
+            padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-900)' }}>{selected.title}</span>
+            <Button type="text" icon={<FullscreenExitOutlined />} onClick={() => setFullscreen(false)}>退出全屏</Button>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+            {isMd ? (
+              <MarkdownViewer content={mdContent} />
+            ) : (
+              <div style={{ height: '100%', padding: 24 }}><HtmlSandbox html={htmlContent} fill /></div>
+            )}
+          </div>
+        </div>
+      )}
+
       <UploadModal collectionId={colId} open={uploadOpen} onClose={() => setUploadOpen(false)} onSuccess={loadDocs} />
       <Modal title="编辑详情" open={!!editing} onOk={handleEditSave} onCancel={() => setEditing(null)} okText="保存" cancelText="取消" width={460}>
         <div style={{ paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -327,6 +381,26 @@ export default function CollectionDetail() {
             <div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 4 }}>备注</div>
             <TextArea value={editNote} rows={3} placeholder="添加备注（可选）" onChange={(e) => setEditNote(e.target.value)} />
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        title="分享文档"
+        open={!!shareDocModal}
+        onCancel={() => setShareDocModal(null)}
+        footer={[
+          <Button key="close" onClick={() => setShareDocModal(null)}>关闭</Button>,
+          <Button key="copy" type="primary" onClick={copyDocShareUrl}>复制链接</Button>,
+        ]}
+      >
+        <div style={{ paddingTop: 8 }}>
+          <p style={{ fontSize: 13, color: 'var(--ink-500)', marginBottom: 12 }}>
+            任何人都可以通过此链接只读查看「{shareDocModal?.title}」（无需登录）。
+          </p>
+          <Input.Group compact>
+            <Input value={shareDocUrl} readOnly style={{ width: 'calc(100% - 80px)' }} />
+            <Button type="primary" onClick={copyDocShareUrl} style={{ width: 80 }}>复制</Button>
+          </Input.Group>
         </div>
       </Modal>
     </div>

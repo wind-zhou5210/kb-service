@@ -54,6 +54,7 @@ export interface DocumentItem {
   tags: string | null
   note: string | null
   sort_order: number
+  share_token: string | null
   created_at: string
   updated_at: string
 }
@@ -124,4 +125,13 @@ export const api = {
 
   getSharedCollection: (token: string) =>
     client.get<SharedCollection>(`/share/${token}`).then((r) => r.data),
+
+  createDocShareLink: (docId: number) =>
+    client.post<{ share_token: string }>(`/documents/${docId}/share`).then((r) => r.data),
+
+  revokeDocShare: (docId: number) =>
+    client.delete(`/documents/${docId}/share`),
+
+  getSharedDocument: (token: string) =>
+    client.get<{ document: { id: number; title: string; ext: string; size: number; created_at: string }; ext: string; content: string }>(`/share/doc/${token}`).then((r) => r.data),
 }
