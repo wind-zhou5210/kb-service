@@ -30,6 +30,15 @@ async def init_db() -> None:
         await conn.run_sync(SQLModel.metadata.create_all)
         # 开启 WAL，提升 SQLite 并发读性能
         await conn.execute(__import__("sqlalchemy").text("PRAGMA journal_mode=WAL"))
+        # FTS5 全文索引虚表
+        await conn.execute(__import__("sqlalchemy").text("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS fts_index USING fts5(
+                document_id UNINDEXED,
+                title,
+                collection_name,
+                body_text
+            )
+        """))
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

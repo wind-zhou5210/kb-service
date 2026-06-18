@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from app.api import auth, collections, documents
+from app.api import auth, collections, documents, search
 from app.core.config import settings
 from app.core.database import init_db
 
@@ -35,6 +35,7 @@ prefix = settings.api_prefix
 app.include_router(auth.router, prefix=prefix)
 app.include_router(collections.router, prefix=prefix)
 app.include_router(documents.router, prefix=prefix)
+app.include_router(search.router, prefix=prefix)
 
 
 @app.get("/api/health")

@@ -174,7 +174,7 @@ export default function CollectionDetail() {
                   <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-900)' }}>{selected.title}</span>
                   <Tag color={isMd ? 'blue' : 'orange'} style={{ borderRadius: 4, fontSize: 11 }}>{selected.ext}</Tag>
                   <span style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)' }}>
-                    {formatSize(selected.size)} · {relativeTime(selected.created_at)}
+                    {formatSize(selected.size)} · {relativeTime(selected.updated_at)}
                   </span>
                 </Space>
                 <Space>
