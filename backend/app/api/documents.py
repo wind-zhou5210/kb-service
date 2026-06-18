@@ -1,6 +1,7 @@
 """文件（Document）路由：上传、查看原文、下载、CRUD。"""
 import os
 import re
+import secrets
 from datetime import datetime, timezone
 from typing import Annotated
 
@@ -228,4 +229,36 @@ async def delete_document(
     col = await session.get(Collection, col_id)
     if col:
         col.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+
+
+@router.post("/documents/{doc_id}/share")
+async def create_doc_share(
+    doc_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: CurrentUser,
+):
+    """生成（或复用）单个文档的只读分享令牌。需鉴权。"""
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
+    if not doc.share_token:
+        doc.share_token = secrets.token_urlsafe(16)
+        session.add(doc)
+        await session.commit()
+    return {"share_token": doc.share_token}
+
+
+@router.delete("/documents/{doc_id}/share", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_doc_share(
+    doc_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: CurrentUser,
+):
+    """撤销单个文档的分享令牌。需鉴权。"""
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
+    doc.share_token = None
+    session.add(doc)
     await session.commit()

@@ -37,5 +37,6 @@ class Document(SQLModel, table=True):
     tags: str | None = None                # JSON 字符串，MVP 简化为逗号分隔
     note: str | None = None
     sort_order: int = 0
+    share_token: str | None = Field(default=None, index=True)  # 单文档只读分享令牌
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

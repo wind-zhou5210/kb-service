@@ -145,6 +145,15 @@ body {
 .doc-item .doc-meta {
   font-family: var(--mono); font-size: 10px; color: var(--ink-400); margin-top: 1px;
 }
+.doc-item .doc-share-btn {
+  opacity: 0;
+  color: var(--ink-400);
+  transition: opacity 0.15s var(--ease), color 0.15s var(--ease);
+  padding: 4px;
+  flex-shrink: 0;
+}
+.doc-item:hover .doc-share-btn { opacity: 1; }
+.doc-item .doc-share-btn:hover { color: var(--accent); }
 
 /* ---- Markdown 阅读区 ---- */
 .md-body {
