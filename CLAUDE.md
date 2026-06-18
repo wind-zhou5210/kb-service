@@ -22,6 +22,12 @@ uvicorn app.main:app --reload --port 8000
 cd frontend
 npm install
 npm run dev           # localhost:5173，/api 代理到 localhost:8000
+
+# CLI 工具开发
+cd cli
+npm install
+npm run build         # 编译 TypeScript
+node dist/index.js    # 运行 CLI
 ```
 
 项目无 Makefile，无单元测试（MVP 阶段）。
@@ -31,10 +37,12 @@ npm run dev           # localhost:5173，/api 代理到 localhost:8000
 ```
 React 18 SPA (Vite + TS)  <-->  FastAPI (asyncio)  <-->  SQLite + 文件系统
         前端                        后端 API
+  Node.js CLI (kb)   <-->  同一 REST API
 ```
 
 - **后端** `backend/`：Python FastAPI，REST JSON API。入口 `app/main.py`。
 - **前端** `frontend/`：React 18 + Vite + TypeScript + Ant Design v5。入口 `src/main.tsx`。
+- **CLI** `cli/`：Node.js TypeScript 命令行工具 `kb-cli`（`npm i -g kb-cli`），commander + axios。入口 `src/index.ts`。
 - **存储**：文件内容按 SHA1 寻址存储，引用计数管理。`StorageBackend` Protocol 可替换为 S3。
 - **数据库**：SQLite（aiosqlite 异步驱动），含 FTS5 全文检索虚拟表。
 
@@ -94,3 +102,29 @@ src/
 - 认证：除 `/api/auth/login` 和 `/api/share/{token}` 外，全部需要 Bearer JWT
 - JWT 通过 `python-jose` HS256 签发，默认 7 天过期
 - 402/404/401/413 错误返回 `{"detail": "message"}`
+
+## CLI 工具 (`cli/`)
+
+```
+src/
+  index.ts               # commander 入口，注册全部命令
+  config.ts              # ~/.kbconfig.json 读写
+  auth.ts                # AuthProvider 接口 + PasswordAuthProvider
+  client.ts              # axios 封装，JWT 拦截器，统一错误处理
+  types.ts               # Collection, DocumentItem, SearchResult 类型
+  commands/
+    auth.ts              # login / logout / whoami
+    config.ts            # config set / get
+    collection.ts        # collection list / create / delete
+    document.ts          # push / list / search / get / download / update / delete
+    share.ts             # share collection / document
+  utils/
+    table.ts             # 表格/键值对/成功/错误/警告 输出
+    format.ts            # formatSize / formatTime / truncate
+    prompt.ts            # askConfirm
+```
+
+- `~/.kbconfig.json` 存储 server + token + username
+- AuthProvider 接口预留 `BrowserAuthProvider` 扩展（未来浏览器 OAuth 流程）
+- 所有查询默认表格输出，`--json` 输出机器可读 JSON
+- chalk@4 + ora@5（CJS 兼容，chalk/ora 高版本纯 ESM 不兼容）
