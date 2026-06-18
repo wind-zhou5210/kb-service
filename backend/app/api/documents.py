@@ -184,8 +184,17 @@ async def update_document(
     doc = await session.get(Document, doc_id)
     if not doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+    for k, v in updates.items():
         setattr(doc, k, v)
+    doc.updated_at = datetime.now(timezone.utc)
+
+    if "title" in updates:
+        await session.execute(
+            text("UPDATE fts_index SET title = :title WHERE document_id = :doc_id"),
+            {"title": doc.title, "doc_id": doc_id},
+        )
+
     await session.commit()
     await session.refresh(doc)
     return doc

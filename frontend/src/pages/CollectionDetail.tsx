@@ -1,10 +1,16 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip } from 'antd'
+import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip, Select } from 'antd'
 import {
   ArrowLeftOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined,
-  MoreOutlined, SearchOutlined, FileTextOutlined, Html5Outlined, FolderOutlined,
+  MoreOutlined, SearchOutlined, FileTextOutlined, Html5Outlined, FolderOutlined, EditOutlined,
 } from '@ant-design/icons'
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { api, type Collection, type DocumentItem } from '../api/client'
 import MarkdownViewer from '../components/MarkdownViewer'
 import HtmlSandbox from '../components/HtmlSandbox'
@@ -13,6 +19,28 @@ import DocToc, { type TocItem } from '../components/DocToc'
 import UploadModal from '../components/UploadModal'
 import EmptyState from '../components/EmptyState'
 import { formatSize, relativeTime } from '../utils/format'
+
+const { TextArea } = Input
+
+const TAG_COLORS = ['blue', 'green', 'orange', 'purple', 'cyan', 'magenta', 'gold']
+
+function SortableDoc({ doc, active, onClick }: {
+  doc: DocumentItem
+  active: boolean
+  onClick: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: doc.id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+  return (
+    <div ref={setNodeRef} style={style}>
+      <DocListItem doc={doc} active={active} onClick={onClick} dragHandleProps={{ ...attributes, ...listeners }} />
+    </div>
+  )
+}
 
 export default function CollectionDetail() {
   const { id } = useParams<{ id: string }>()
@@ -28,9 +56,14 @@ export default function CollectionDetail() {
   const [contentLoading, setContentLoading] = useState(false)
   const [tocItems, setTocItems] = useState<TocItem[]>([])
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [renaming, setRenaming] = useState<DocumentItem | null>(null)
-  const [renameTitle, setRenameTitle] = useState('')
+  const [editing, setEditing] = useState<DocumentItem | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editTags, setEditTags] = useState<string[]>([])
+  const [editNote, setEditNote] = useState('')
   const [search, setSearch] = useState('')
+  const [tagFilter, setTagFilter] = useState<string | null>(null)
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   const loadDocs = useCallback(async () => {
     setLoading(true)
@@ -57,11 +90,23 @@ export default function CollectionDetail() {
 
   const handleTocReady = useCallback((items: TocItem[]) => setTocItems(items), [])
 
+  const allTags = useMemo(() => {
+    const s = new Set<string>()
+    docs.forEach(d => d.tags?.split(',').forEach(t => { const v = t.trim(); if (v) s.add(v) }))
+    return Array.from(s)
+  }, [docs])
+
   const filteredDocs = useMemo(() => {
-    if (!search.trim()) return docs
-    const q = search.toLowerCase()
-    return docs.filter((d) => d.title.toLowerCase().includes(q))
-  }, [docs, search])
+    let result = docs
+    if (tagFilter) {
+      result = result.filter(d => d.tags?.split(',').map(t => t.trim()).includes(tagFilter))
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(d => d.title.toLowerCase().includes(q))
+    }
+    return result
+  }, [docs, search, tagFilter])
 
   const handleDelete = (doc: DocumentItem) => {
     Modal.confirm({
@@ -75,16 +120,44 @@ export default function CollectionDetail() {
     })
   }
 
-  const handleRename = async () => {
-    if (!renaming || !renameTitle.trim()) return
-    await api.updateDocument(renaming.id, { title: renameTitle.trim() })
-    setRenaming(null); loadDocs()
-    if (selected?.id === renaming.id) setSelected({ ...selected, title: renameTitle.trim() })
+  const openEdit = (doc: DocumentItem) => {
+    setEditing(doc)
+    setEditTitle(doc.title)
+    setEditTags(doc.tags?.split(',').map(t => t.trim()).filter(Boolean) ?? [])
+    setEditNote(doc.note ?? '')
+  }
+
+  const handleEditSave = async () => {
+    if (!editing || !editTitle.trim()) return
+    await api.updateDocument(editing.id, {
+      title: editTitle.trim(),
+      tags: editTags.length > 0 ? editTags.join(',') : null,
+      note: editNote.trim() || null,
+    })
+    setEditing(null); loadDocs()
+    if (selected?.id === editing.id) {
+      setSelected({ ...selected, title: editTitle.trim(), tags: editTags.join(','), note: editNote.trim() || null })
+    }
+  }
+
+  const handleDragEnd = async (e: DragEndEvent) => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const oldIndex = docs.findIndex((d) => d.id === active.id)
+    const newIndex = docs.findIndex((d) => d.id === over.id)
+    if (oldIndex < 0 || newIndex < 0) return
+    const reordered = [...docs]
+    const [moved] = reordered.splice(oldIndex, 1)
+    reordered.splice(newIndex, 0, moved)
+    setDocs(reordered)
+    await Promise.all(
+      reordered.map((d, i) => api.updateDocument(d.id, { sort_order: i }))
+    )
   }
 
   const dropdownItems = (doc: DocumentItem) => ({
     items: [
-      { key: 'rename', label: '重命名', onClick: () => { setRenaming(doc); setRenameTitle(doc.title) } },
+      { key: 'edit', label: '编辑详情', icon: <EditOutlined />, onClick: () => openEdit(doc) },
       { key: 'download', label: '下载', icon: <DownloadOutlined />, onClick: () => window.open(`/api/documents/${doc.id}/download`) },
       { type: 'divider' as const },
       { key: 'delete', label: '删除', icon: <DeleteOutlined />, danger: true, onClick: () => handleDelete(doc) },
@@ -92,6 +165,7 @@ export default function CollectionDetail() {
   })
 
   const isMd = selected?.ext === '.md'
+  const selectedTags = selected?.tags?.split(',').map(t => t.trim()).filter(Boolean) ?? []
 
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 52px)', overflow: 'hidden' }}>
@@ -127,7 +201,7 @@ export default function CollectionDetail() {
         </div>
 
         {docs.length > 0 && (
-          <div style={{ padding: '8px 10px' }}>
+          <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Input
               size="small" allowClear
               prefix={<SearchOutlined style={{ color: 'var(--ink-300)', fontSize: 11 }} />}
@@ -135,6 +209,20 @@ export default function CollectionDetail() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            {allTags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {allTags.map(t => (
+                  <Tag
+                    key={t}
+                    color={tagFilter === t ? 'blue' : 'default'}
+                    style={{ cursor: 'pointer', fontSize: 11, margin: 0, borderRadius: 4 }}
+                    onClick={() => setTagFilter(tagFilter === t ? null : t)}
+                  >
+                    {t}
+                  </Tag>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -148,9 +236,13 @@ export default function CollectionDetail() {
           ) : filteredDocs.length === 0 ? (
             <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-400)', fontSize: 12 }}>未找到匹配文件</div>
           ) : (
-            filteredDocs.map((doc) => (
-              <DocListItem key={doc.id} doc={doc} active={selected?.id === doc.id} onClick={() => viewDoc(doc)} />
-            ))
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={filteredDocs.map(d => d.id)} strategy={verticalListSortingStrategy}>
+                {filteredDocs.map((doc) => (
+                  <SortableDoc key={doc.id} doc={doc} active={selected?.id === doc.id} onClick={() => viewDoc(doc)} />
+                ))}
+              </SortableContext>
+            </DndContext>
           )}
         </div>
       </aside>
@@ -170,9 +262,12 @@ export default function CollectionDetail() {
                 borderBottom: '1px solid var(--ink-50)', padding: '10px 32px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
-                <Space>
+                <Space wrap>
                   <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-900)' }}>{selected.title}</span>
                   <Tag color={isMd ? 'blue' : 'orange'} style={{ borderRadius: 4, fontSize: 11 }}>{selected.ext}</Tag>
+                  {selectedTags.map((t, i) => (
+                    <Tag key={t} color={TAG_COLORS[i % TAG_COLORS.length]} style={{ borderRadius: 4, fontSize: 11 }}>{t}</Tag>
+                  ))}
                   <span style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)' }}>
                     {formatSize(selected.size)} · {relativeTime(selected.updated_at)}
                   </span>
@@ -186,6 +281,12 @@ export default function CollectionDetail() {
                   </Dropdown>
                 </Space>
               </div>
+
+              {selected.note && (
+                <div style={{ padding: '8px 32px', background: 'var(--ink-50)', borderBottom: '1px solid var(--ink-100)', fontSize: 12, color: 'var(--ink-500)' }}>
+                  📝 {selected.note}
+                </div>
+              )}
 
               {contentLoading ? (
                 <div style={{ padding: 32, maxWidth: 760, margin: '0 auto' }}><Skeleton active paragraph={{ rows: 8 }} /></div>
@@ -206,8 +307,27 @@ export default function CollectionDetail() {
       </main>
 
       <UploadModal collectionId={colId} open={uploadOpen} onClose={() => setUploadOpen(false)} onSuccess={loadDocs} />
-      <Modal title="重命名" open={!!renaming} onOk={handleRename} onCancel={() => setRenaming(null)} okText="确认" cancelText="取消">
-        <Input value={renameTitle} onChange={(e) => setRenameTitle(e.target.value)} />
+      <Modal title="编辑详情" open={!!editing} onOk={handleEditSave} onCancel={() => setEditing(null)} okText="保存" cancelText="取消" width={460}>
+        <div style={{ paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 4 }}>标题</div>
+            <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 4 }}>标签</div>
+            <Select
+              mode="tags"
+              style={{ width: '100%' }}
+              placeholder="输入标签后回车"
+              value={editTags}
+              onChange={setEditTags}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 4 }}>备注</div>
+            <TextArea value={editNote} rows={3} placeholder="添加备注（可选）" onChange={(e) => setEditNote(e.target.value)} />
+          </div>
+        </div>
       </Modal>
     </div>
   )
