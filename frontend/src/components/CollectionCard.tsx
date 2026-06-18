@@ -63,7 +63,7 @@ export default function CollectionCard({ collection, docCount = 0, onClick, onDe
           {collection.description || '暂无描述'}
         </div>
         <div className="meta">
-          <span>{docCount} 篇 · {relativeTime(collection.created_at)}</span>
+          <span>{docCount} 篇 · {relativeTime(collection.updated_at)}</span>
           <Dropdown
             menu={{
               items: [

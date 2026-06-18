@@ -1,5 +1,7 @@
 """文件（Document）路由：上传、查看原文、下载、CRUD。"""
 import os
+import re
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import (
@@ -13,6 +15,7 @@ from fastapi import (
 )
 from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -30,6 +33,15 @@ ALLOWED = {e.lower() for e in settings.allowed_exts}
 
 def _ext(filename: str) -> str:
     return os.path.splitext(filename)[1].lower()
+
+
+def _extract_text(data: bytes, ext: str) -> str:
+    """从文件内容提取纯文本用于 FTS 索引。HTML 去标签，Markdown 原样使用。"""
+    raw = data.decode("utf-8", errors="replace")
+    if ext in ('.html', '.htm'):
+        raw = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', raw, flags=re.DOTALL | re.IGNORECASE)
+        raw = re.sub(r'<[^>]+>', ' ', raw)
+    return re.sub(r'\s+', ' ', raw).strip()
 
 
 @router.get("/collections/{col_id}/documents")
@@ -55,6 +67,7 @@ async def upload_document(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "集合不存在")
 
     created = []
+    file_data_list: list[tuple[bytes, str]] = []
     for f in files:
         ext = _ext(f.filename or "")
         if ext not in ALLOWED:
@@ -89,10 +102,22 @@ async def upload_document(
         )
         session.add(doc)
         created.append(doc)
+        file_data_list.append((data, ext))
 
+    col.updated_at = datetime.now(timezone.utc)
     await session.commit()
     for d in created:
         await session.refresh(d)
+
+    # 同步 FTS 索引
+    for d, (fdata, fext) in zip(created, file_data_list):
+        body_text = _extract_text(fdata, fext)
+        await session.execute(text(
+            "INSERT INTO fts_index (document_id, title, collection_name, body_text) "
+            "VALUES (:doc_id, :title, :col_name, :body)"
+        ), {"doc_id": d.id, "title": d.title, "col_name": col.name, "body": body_text})
+    await session.commit()
+
     return created
 
 
@@ -176,6 +201,11 @@ async def delete_document(
     if not doc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
     sha1 = doc.content_sha1
+    col_id = doc.collection_id
+
+    # 清理 FTS 索引
+    await session.execute(text("DELETE FROM fts_index WHERE document_id = :doc_id"), {"doc_id": doc_id})
+
     await session.delete(doc)
 
     # 引用计数 -1，归零删物理文件
@@ -185,4 +215,8 @@ async def delete_document(
         if blob.ref_count <= 0:
             await session.delete(blob)
             await storage.delete(sha1)
+
+    col = await session.get(Collection, col_id)
+    if col:
+        col.updated_at = datetime.now(timezone.utc)
     await session.commit()

@@ -1,9 +1,11 @@
 """知识集合（Collection）路由。"""
 import secrets
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -29,9 +31,15 @@ class CollectionUpdate(BaseModel):
 async def list_collections(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    stmt = select(Collection).order_by(Collection.sort_order, Collection.created_at.desc())
+    stmt = (
+        select(Collection, func.count(Document.id).label("doc_count"))
+        .outerjoin(Document, Document.collection_id == Collection.id)
+        .group_by(Collection.id)
+        .order_by(Collection.sort_order, Collection.created_at.desc())
+    )
     result = await session.execute(stmt)
-    return result.scalars().all()
+    rows = result.all()
+    return [{**col.model_dump(), "doc_count": count} for col, count in rows]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -59,6 +67,7 @@ async def update_collection(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "集合不存在")
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(col, k, v)
+    col.updated_at = datetime.now(timezone.utc)
     await session.commit()
     await session.refresh(col)
     return col

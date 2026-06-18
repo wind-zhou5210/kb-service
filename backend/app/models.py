@@ -2,7 +2,7 @@
 
 关系：Collection 1—N Document N—1 FileBlob（多文档共享同一物理文件，内容寻址去重）。
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlmodel import Field, SQLModel
 
 
@@ -13,8 +13,8 @@ class Collection(SQLModel, table=True):
     cover: str | None = None
     sort_order: int = 0
     share_token: str | None = Field(default=None, index=True)  # 只读分享令牌
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class FileBlob(SQLModel, table=True):
@@ -37,5 +37,5 @@ class Document(SQLModel, table=True):
     tags: str | None = None                # JSON 字符串，MVP 简化为逗号分隔
     note: str | None = None
     sort_order: int = 0
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

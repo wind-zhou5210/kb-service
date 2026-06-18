@@ -11,14 +11,16 @@ export function formatSize(bytes: number): string {
 
 /** 相对时间格式化（"3天前"） */
 export function relativeTime(iso: string): string {
+  // SQLite 存储时不保留时区信息，读回的 naive datetime 需按 UTC 解析
+  const normalized = iso.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + 'Z'
   const now = Date.now()
-  const then = new Date(iso).getTime()
+  const then = new Date(normalized).getTime()
   const diff = now - then
   const sec = Math.floor(diff / 1000)
   const min = Math.floor(sec / 60)
   const hour = Math.floor(min / 60)
   const day = Math.floor(hour / 24)
-  if (day > 30) return new Date(iso).toLocaleDateString('zh-CN')
+  if (day > 30) return new Date(normalized).toLocaleDateString('zh-CN')
   if (day > 0) return `${day} 天前`
   if (hour > 0) return `${hour} 小时前`
   if (min > 0) return `${min} 分钟前`

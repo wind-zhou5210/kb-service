@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Dropdown } from 'antd'
-import { LogoutOutlined } from '@ant-design/icons'
+import { Dropdown, Input } from 'antd'
+import { LogoutOutlined, SearchOutlined } from '@ant-design/icons'
 import { useAuth } from '../store/auth'
 
 interface Props {
@@ -10,6 +11,12 @@ interface Props {
 export default function AppLayout({ children }: Props) {
   const navigate = useNavigate()
   const logout = useAuth((s) => s.logout)
+  const [q, setQ] = useState('')
+
+  const goSearch = () => {
+    const trimmed = q.trim()
+    navigate(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/search')
+  }
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -18,6 +25,16 @@ export default function AppLayout({ children }: Props) {
           <div className="logo-mark">K</div>
           <span>文件知识库</span>
         </div>
+        <Input
+          allowClear
+          prefix={<SearchOutlined style={{ color: 'var(--ink-300)', fontSize: 13 }} />}
+          placeholder="搜索文档..."
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onPressEnter={goSearch}
+          onFocus={(e) => e.target.select()}
+          style={{ maxWidth: 280, height: 32, borderRadius: 6, marginLeft: 8 }}
+        />
         <div style={{ flex: 1 }} />
         <Dropdown
           menu={{ items: [{ key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: logout }] }}

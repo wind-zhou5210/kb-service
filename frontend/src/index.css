@@ -212,3 +212,143 @@ body {
   .app-header { padding: 0 12px; gap: 8px; }
   .md-body { padding: 16px; font-size: 14px; }
 }
+
+/* ---- 登录页：左右分屏 ---- */
+.login-page {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* 左侧品牌区 */
+.login-brand {
+  flex: 0 0 42%;
+  background: var(--ink-900);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 40px 48px;
+  position: relative;
+  overflow: hidden;
+}
+.login-brand::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -20%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(79, 70, 229, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+.login-brand-top { position: relative; z-index: 1; }
+.login-brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.login-brand-mark {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.login-brand-hero {
+  position: relative; z-index: 1;
+}
+.login-brand-hero h1 {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  margin: 0 0 14px;
+  color: #fff;
+}
+.login-brand-hero p {
+  font-size: 14px;
+  color: var(--ink-300);
+  line-height: 1.6;
+  margin: 0;
+  max-width: 340px;
+}
+.login-brand-features {
+  position: relative; z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.login-feature {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.login-feature-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  color: var(--ink-200);
+  flex-shrink: 0;
+}
+.login-feature-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+.login-feature-desc {
+  font-size: 12px;
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+
+/* 右侧表单区 */
+.login-form-side {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 24px;
+}
+.login-form-wrap {
+  width: 100%;
+  max-width: 340px;
+}
+.login-form-header {
+  margin-bottom: 28px;
+}
+.login-form-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+  margin: 0;
+}
+.login-form-header p {
+  font-size: 13px;
+  color: var(--ink-400);
+  margin: 6px 0 0;
+}
+.login-hint {
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--ink-400);
+  text-align: center;
+  font-family: var(--mono);
+}
+
+/* 移动端：隐藏品牌区 */
+@media (max-width: 768px) {
+  .login-brand { display: none; }
+  .login-form-side { padding: 24px 20px; }
+}
+
+/* ---- 搜索结果项 ---- */
+.search-result-item:hover { border-color: var(--ink-400) !important; }

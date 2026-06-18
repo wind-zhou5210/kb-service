@@ -4,6 +4,7 @@ import AppLayout from './components/AppLayout'
 import Login from './pages/Login'
 import Collections from './pages/Collections'
 import CollectionDetail from './pages/CollectionDetail'
+import Search from './pages/Search'
 
 /** 鉴权守卫：未登录跳 /login，并记住来源路径 */
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,14 @@ export default function App() {
         element={
           <RequireAuth>
             <CollectionDetail />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/search"
+        element={
+          <RequireAuth>
+            <Search />
           </RequireAuth>
         }
       />

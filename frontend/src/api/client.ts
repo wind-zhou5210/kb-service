@@ -40,6 +40,7 @@ export interface Collection {
   share_token: string | null
   created_at: string
   updated_at: string
+  doc_count: number
 }
 
 export interface DocumentItem {
@@ -55,6 +56,15 @@ export interface DocumentItem {
   sort_order: number
   created_at: string
   updated_at: string
+}
+
+export interface SearchResult {
+  document_id: number
+  title: string
+  ext: string
+  collection_id: number
+  collection_name: string
+  snippet: string
 }
 
 // ---- API ----
@@ -97,4 +107,7 @@ export const api = {
 
   deleteDocument: (id: number) =>
     client.delete(`/documents/${id}`),
+
+  search: (q: string) =>
+    client.get<SearchResult[]>('/search', { params: { q } }).then((r) => r.data),
 }
