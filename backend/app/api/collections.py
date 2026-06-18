@@ -19,11 +19,13 @@ router = APIRouter(prefix="/collections", tags=["collections"])
 class CollectionCreate(BaseModel):
     name: str
     description: str | None = None
+    cover: str | None = None
 
 
 class CollectionUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+    cover: str | None = None
     sort_order: int | None = None
 
 
@@ -48,7 +50,7 @@ async def create_collection(
     session: Annotated[AsyncSession, Depends(get_session)],
     user: CurrentUser,
 ):
-    col = Collection(name=body.name, description=body.description)
+    col = Collection(name=body.name, description=body.description, cover=body.cover)
     session.add(col)
     await session.commit()
     await session.refresh(col)
@@ -106,3 +108,16 @@ async def create_share_token(
         await session.commit()
         await session.refresh(col)
     return {"share_token": col.share_token}
+
+
+@router.delete("/{col_id}/share", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_share_token(
+    col_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: CurrentUser,
+):
+    col = await session.get(Collection, col_id)
+    if not col:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "集合不存在")
+    col.share_token = None
+    await session.commit()

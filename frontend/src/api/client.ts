@@ -67,6 +67,11 @@ export interface SearchResult {
   snippet: string
 }
 
+export interface SharedCollection {
+  collection: Collection
+  documents: DocumentItem[]
+}
+
 // ---- API ----
 export const api = {
   login: (username: string, password: string) =>
@@ -79,7 +84,7 @@ export const api = {
   createCollection: (name: string, description?: string) =>
     client.post<Collection>('/collections', { name, description }).then((r) => r.data),
 
-  updateCollection: (id: number, data: Partial<Pick<Collection, 'name' | 'description' | 'sort_order'>>) =>
+  updateCollection: (id: number, data: Partial<Pick<Collection, 'name' | 'description' | 'cover' | 'sort_order'>>) =>
     client.patch<Collection>(`/collections/${id}`, data).then((r) => r.data),
 
   deleteCollection: (id: number) =>
@@ -110,4 +115,13 @@ export const api = {
 
   search: (q: string) =>
     client.get<SearchResult[]>('/search', { params: { q } }).then((r) => r.data),
+
+  createShareLink: (colId: number) =>
+    client.post<{ share_token: string }>(`/collections/${colId}/share`).then((r) => r.data),
+
+  revokeShare: (colId: number) =>
+    client.delete(`/collections/${colId}/share`),
+
+  getSharedCollection: (token: string) =>
+    client.get<SharedCollection>(`/share/${token}`).then((r) => r.data),
 }
