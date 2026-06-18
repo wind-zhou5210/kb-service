@@ -1,82 +1,75 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip } from 'antd'
 import {
-  Layout, Tree, Button, Spin, Empty, Dropdown, Modal, Input, Tag, Space, Typography,
-} from 'antd'
-import {
-  ArrowLeftOutlined, FileTextOutlined, Html5Outlined, UploadOutlined,
-  DeleteOutlined, DownloadOutlined, MoreOutlined, ReloadOutlined,
+  ArrowLeftOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined,
+  MoreOutlined, SearchOutlined, FileTextOutlined, Html5Outlined, FolderOutlined,
 } from '@ant-design/icons'
-import type { TreeDataNode } from 'antd'
-import { api, type DocumentItem } from '../api/client'
+import { api, type Collection, type DocumentItem } from '../api/client'
 import MarkdownViewer from '../components/MarkdownViewer'
 import HtmlSandbox from '../components/HtmlSandbox'
+import DocListItem from '../components/DocListItem'
+import DocToc, { type TocItem } from '../components/DocToc'
 import UploadModal from '../components/UploadModal'
-
-const { Sider, Content } = Layout
-const { Title, Text } = Typography
+import EmptyState from '../components/EmptyState'
+import { formatSize, relativeTime } from '../utils/format'
 
 export default function CollectionDetail() {
   const { id } = useParams<{ id: string }>()
   const colId = Number(id)
   const navigate = useNavigate()
 
+  const [collection, setCollection] = useState<Collection | null>(null)
   const [docs, setDocs] = useState<DocumentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<DocumentItem | null>(null)
   const [mdContent, setMdContent] = useState('')
   const [htmlContent, setHtmlContent] = useState('')
   const [contentLoading, setContentLoading] = useState(false)
+  const [tocItems, setTocItems] = useState<TocItem[]>([])
   const [uploadOpen, setUploadOpen] = useState(false)
   const [renaming, setRenaming] = useState<DocumentItem | null>(null)
   const [renameTitle, setRenameTitle] = useState('')
+  const [search, setSearch] = useState('')
 
   const loadDocs = useCallback(async () => {
     setLoading(true)
     try {
       const list = await api.listDocuments(colId)
       setDocs(list)
-    } finally {
-      setLoading(false)
-    }
+      const cols = await api.listCollections()
+      setCollection(cols.find((c) => c.id === colId) ?? null)
+    } finally { setLoading(false) }
   }, [colId])
 
-  useEffect(() => {
-    loadDocs()
-  }, [loadDocs])
+  useEffect(() => { loadDocs() }, [loadDocs])
 
-  // 选中文档时加载内容
   const viewDoc = useCallback(async (doc: DocumentItem) => {
-    setSelected(doc)
-    setContentLoading(true)
+    setSelected(doc); setTocItems([]); setContentLoading(true)
     try {
       if (doc.ext === '.md') {
-        const raw = await api.getRaw(doc.id)
-        setMdContent(raw)
-        setHtmlContent('')
+        setMdContent(await api.getRaw(doc.id)); setHtmlContent('')
       } else {
-        const wrapped = await api.getRaw(doc.id, 'html')
-        setHtmlContent(wrapped)
-        setMdContent('')
+        setHtmlContent(await api.getRaw(doc.id, 'html')); setMdContent('')
       }
-    } finally {
-      setContentLoading(false)
-    }
+    } finally { setContentLoading(false) }
   }, [])
 
-  const treeData: TreeDataNode[] = docs.map((d) => ({
-    key: d.id,
-    title: d.title, // 仅作 fallback，实际渲染由 titleRender 接管
-  }))
+  const handleTocReady = useCallback((items: TocItem[]) => setTocItems(items), [])
+
+  const filteredDocs = useMemo(() => {
+    if (!search.trim()) return docs
+    const q = search.toLowerCase()
+    return docs.filter((d) => d.title.toLowerCase().includes(q))
+  }, [docs, search])
 
   const handleDelete = (doc: DocumentItem) => {
     Modal.confirm({
-      title: '删除文件',
-      content: `确认删除「${doc.filename}」？`,
-      okType: 'danger',
+      title: '删除文件', content: `确认删除「${doc.filename}」？`,
+      okType: 'danger', okText: '删除', cancelText: '取消',
       onOk: async () => {
         await api.deleteDocument(doc.id)
-        if (selected?.id === doc.id) setSelected(null)
+        if (selected?.id === doc.id) { setSelected(null); setMdContent(''); setHtmlContent('') }
         loadDocs()
       },
     })
@@ -85,8 +78,7 @@ export default function CollectionDetail() {
   const handleRename = async () => {
     if (!renaming || !renameTitle.trim()) return
     await api.updateDocument(renaming.id, { title: renameTitle.trim() })
-    setRenaming(null)
-    loadDocs()
+    setRenaming(null); loadDocs()
     if (selected?.id === renaming.id) setSelected({ ...selected, title: renameTitle.trim() })
   }
 
@@ -99,99 +91,124 @@ export default function CollectionDetail() {
     ],
   })
 
+  const isMd = selected?.ext === '.md'
+
   return (
-    <Layout style={{ height: '100vh' }}>
-      <Sider width={280} theme="light" style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', gap: 8 }}>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/')} type="text" />
-          <Button type="primary" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)} block>
-            上传
-          </Button>
-          <Button icon={<ReloadOutlined />} onClick={loadDocs} type="text" />
-        </div>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
-        ) : docs.length === 0 ? (
-          <Empty description="无文件" style={{ marginTop: 60 }} />
-        ) : (
-          <Tree
-            treeData={treeData}
-            selectedKeys={selected ? [selected.id] : []}
-            onSelect={(keys) => {
-              const doc = docs.find((d) => d.id === keys[0])
-              if (doc) viewDoc(doc)
-            }}
-            blockNode
-            showLine
-            titleRender={(node) => {
-              const doc = docs.find((d) => d.id === node.key)
-              if (!doc) return null
-              return (
-                <div
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                  onClick={() => viewDoc(doc)}
-                >
-                  <Space size={4}>
-                    {doc.ext === '.md'
-                      ? <FileTextOutlined style={{ color: '#1677ff' }} />
-                      : <Html5Outlined style={{ color: '#e34c26' }} />}
-                    <span>{doc.title}</span>
-                  </Space>
-                  <Dropdown menu={dropdownItems(doc)} trigger={['click']}>
-                    <MoreOutlined onClick={(e) => e.stopPropagation()} style={{ marginLeft: 8 }} />
-                  </Dropdown>
+    <div style={{ display: 'flex', height: 'calc(100vh - 52px)', overflow: 'hidden' }}>
+      {/* 左栏 */}
+      <aside style={{ width: 256, borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        <div style={{ padding: 14, borderBottom: '1px solid var(--ink-50)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+            <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/')} size="small" />
+            <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>返回</span>
+          </div>
+          {collection && (
+            <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: 6, background: 'var(--ink-50)',
+                border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', color: 'var(--ink-500)', fontSize: 14,
+              }}>
+                <FolderOutlined />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {collection.name}
                 </div>
-              )
-            }}
-          />
+                <div style={{ fontSize: 10, color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginTop: 1 }}>
+                  {docs.length} files
+                </div>
+              </div>
+            </div>
+          )}
+          <Button type="primary" icon={<UploadOutlined />} block onClick={() => setUploadOpen(true)} style={{ marginTop: 10 }}>
+            上传文件
+          </Button>
+        </div>
+
+        {docs.length > 0 && (
+          <div style={{ padding: '8px 10px' }}>
+            <Input
+              size="small" allowClear
+              prefix={<SearchOutlined style={{ color: 'var(--ink-300)', fontSize: 11 }} />}
+              placeholder="搜索文件..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         )}
-      </Sider>
-      <Content style={{ overflow: 'auto', background: '#fff' }}>
+
+        <div style={{ flex: 1, overflow: 'auto', padding: '4px 8px' }}>
+          {loading ? (
+            <div style={{ padding: 12 }}>{[1,2,3,4].map((i) => <Skeleton key={i} active paragraph={{ rows: 1 }} title={{ width: '60%' }} style={{ marginBottom: 10 }} />)}</div>
+          ) : docs.length === 0 ? (
+            <div style={{ padding: 20 }}>
+              <EmptyState icon={<FileTextOutlined />} title="暂无文件" description="上传第一份文档" actionText="上传文件" onAction={() => setUploadOpen(true)} />
+            </div>
+          ) : filteredDocs.length === 0 ? (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-400)', fontSize: 12 }}>未找到匹配文件</div>
+          ) : (
+            filteredDocs.map((doc) => (
+              <DocListItem key={doc.id} doc={doc} active={selected?.id === doc.id} onClick={() => viewDoc(doc)} />
+            ))
+          )}
+        </div>
+      </aside>
+
+      {/* 内容区 */}
+      <main style={{ flex: 1, overflow: 'auto', background: 'var(--surface)' }}>
         {!selected ? (
           <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-            <Empty description="选择左侧文件查看内容" />
+            <EmptyState icon={<FileTextOutlined />} title="选择文件开始阅读" description="从左侧列表选择一份文档" />
           </div>
-        ) : contentLoading ? (
-          <div style={{ textAlign: 'center', padding: 80 }}><Spin /></div>
         ) : (
-          <div>
-            <div style={{ padding: '12px 24px', borderBottom: '1px solid #f0f0f0', background: '#fafafa' }}>
-              <Space>
-                <Title level={5} style={{ margin: 0 }}>{selected.title}</Title>
-                <Tag color={selected.ext === '.md' ? 'blue' : 'orange'}>{selected.ext}</Tag>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {(selected.size / 1024).toFixed(1)} KB
-                </Text>
-              </Space>
-            </div>
-            {selected.ext === '.md' ? (
-              <MarkdownViewer content={mdContent} />
-            ) : (
-              <div style={{ padding: 16 }}>
-                <HtmlSandbox html={htmlContent} />
+          <div style={{ minHeight: '100%', display: 'flex' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {/* 文档顶栏 */}
+              <div style={{
+                position: 'sticky', top: 0, zIndex: 10, background: 'var(--surface)',
+                borderBottom: '1px solid var(--ink-50)', padding: '10px 32px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <Space>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-900)' }}>{selected.title}</span>
+                  <Tag color={isMd ? 'blue' : 'orange'} style={{ borderRadius: 4, fontSize: 11 }}>{selected.ext}</Tag>
+                  <span style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)' }}>
+                    {formatSize(selected.size)} · {relativeTime(selected.created_at)}
+                  </span>
+                </Space>
+                <Space>
+                  <Tooltip title="下载">
+                    <Button type="text" size="small" icon={<DownloadOutlined />} onClick={() => window.open(`/api/documents/${selected.id}/download`)} />
+                  </Tooltip>
+                  <Dropdown menu={dropdownItems(selected)} trigger={['click']}>
+                    <Button type="text" size="small" icon={<MoreOutlined />} />
+                  </Dropdown>
+                </Space>
               </div>
+
+              {contentLoading ? (
+                <div style={{ padding: 32, maxWidth: 760, margin: '0 auto' }}><Skeleton active paragraph={{ rows: 8 }} /></div>
+              ) : isMd ? (
+                <MarkdownViewer content={mdContent} onTocReady={handleTocReady} />
+              ) : (
+                <div style={{ padding: 24 }}><HtmlSandbox html={htmlContent} /></div>
+              )}
+            </div>
+
+            {isMd && tocItems.length > 0 && (
+              <aside style={{ width: 208, flexShrink: 0, borderLeft: '1px solid var(--ink-50)', overflow: 'auto' }}>
+                <DocToc items={tocItems} />
+              </aside>
             )}
           </div>
         )}
-      </Content>
+      </main>
 
-      <UploadModal
-        collectionId={colId}
-        open={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-        onSuccess={loadDocs}
-      />
-
-      <Modal
-        title="重命名"
-        open={!!renaming}
-        onOk={handleRename}
-        onCancel={() => setRenaming(null)}
-        okText="确认"
-        cancelText="取消"
-      >
+      <UploadModal collectionId={colId} open={uploadOpen} onClose={() => setUploadOpen(false)} onSuccess={loadDocs} />
+      <Modal title="重命名" open={!!renaming} onOk={handleRename} onCancel={() => setRenaming(null)} okText="确认" cancelText="取消">
         <Input value={renameTitle} onChange={(e) => setRenameTitle(e.target.value)} />
       </Modal>
-    </Layout>
+    </div>
   )
 }

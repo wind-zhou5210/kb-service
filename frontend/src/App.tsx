@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './store/auth'
+import AppLayout from './components/AppLayout'
 import Login from './pages/Login'
 import Collections from './pages/Collections'
 import CollectionDetail from './pages/CollectionDetail'
@@ -11,7 +12,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!token) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
-  return <>{children}</>
+  return <AppLayout>{children}</AppLayout>
 }
 
 export default function App() {

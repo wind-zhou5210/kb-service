@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Row, Col, Card, Button, Input, Modal, Empty, Spin, Dropdown, Typography } from 'antd'
-import { PlusOutlined, FolderOutlined, MoreOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Row, Col, Button, Input, Modal, Spin } from 'antd'
+import { PlusOutlined, SearchOutlined, FolderOutlined } from '@ant-design/icons'
 import { api, type Collection } from '../api/client'
-import { useAuth } from '../store/auth'
+import CollectionCard from '../components/CollectionCard'
+import EmptyState from '../components/EmptyState'
 
 const { TextArea } = Input
-const { Title, Paragraph } = Typography
 
 export default function Collections() {
   const [list, setList] = useState<Collection[]>([])
@@ -14,152 +14,94 @@ export default function Collections() {
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
+  const [search, setSearch] = useState('')
   const navigate = useNavigate()
-  const logout = useAuth((s) => s.logout)
 
   const load = async () => {
     setLoading(true)
-    try {
-      setList(await api.listCollections())
-    } finally {
-      setLoading(false)
-    }
+    try { setList(await api.listCollections()) }
+    finally { setLoading(false) }
   }
 
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return list
+    const q = search.toLowerCase()
+    return list.filter((c) =>
+      c.name.toLowerCase().includes(q) || (c.description ?? '').toLowerCase().includes(q)
+    )
+  }, [list, search])
 
   const handleCreate = async () => {
     if (!newName.trim()) return
     await api.createCollection(newName.trim(), newDesc.trim() || undefined)
-    setNewName('')
-    setNewDesc('')
-    setCreateOpen(false)
-    load()
+    setNewName(''); setNewDesc(''); setCreateOpen(false); load()
   }
 
-  const handleDelete = (c: Collection) => {
-    Modal.confirm({
-      title: '删除集合',
-      content: `确认删除「${c.name}」及其下所有文件？此操作不可恢复。`,
-      okType: 'danger',
-      onOk: async () => {
-        await api.deleteCollection(c.id)
-        load()
-      },
-    })
-  }
+  const handleDelete = async (id: number) => { await api.deleteCollection(id); load() }
 
   return (
-    <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>
-          <FolderOutlined style={{ marginRight: 8 }} />
-          知识集合
-        </Title>
+    <div style={{ padding: '32px 24px', maxWidth: 1280, margin: '0 auto' }}>
+      {/* 页头 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
-            新建集合
-          </Button>
-          <Button type="text" onClick={logout} style={{ marginLeft: 8 }}>
-            退出
-          </Button>
+          <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: 'var(--ink-900)', letterSpacing: '-0.01em' }}>
+            知识集合
+          </h1>
+          <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 4, fontFamily: 'var(--mono)' }}>
+            {list.length} {list.length === 1 ? 'collection' : 'collections'}
+          </div>
         </div>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+          新建
+        </Button>
       </div>
 
+      {/* 搜索 */}
+      {list.length > 0 && (
+        <Input
+          allowClear
+          prefix={<SearchOutlined style={{ color: 'var(--ink-300)' }} />}
+          placeholder="搜索集合..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ maxWidth: 320, marginBottom: 20, borderRadius: 6 }}
+        />
+      )}
+
+      {/* 内容 */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 80 }}>
-          <Spin />
-        </div>
+        <div style={{ textAlign: 'center', padding: 80 }}><Spin /></div>
       ) : list.length === 0 ? (
-        <Empty description="还没有知识集合，点击右上角新建">
-          <Button type="primary" onClick={() => setCreateOpen(true)}>
-            新建集合
-          </Button>
-        </Empty>
+        <EmptyState
+          icon={<FolderOutlined />}
+          title="还没有知识集合"
+          description="创建你的第一个集合，开始整理文档"
+          actionText="新建集合"
+          onAction={() => setCreateOpen(true)}
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={<SearchOutlined />} title="未找到匹配的集合" />
       ) : (
         <Row gutter={[16, 16]}>
-          {list.map((c) => (
+          {filtered.map((c) => (
             <Col xs={24} sm={12} md={8} lg={6} key={c.id}>
-              <Card
-                hoverable
+              <CollectionCard
+                collection={c}
                 onClick={() => navigate(`/collections/${c.id}`)}
-                actions={[
-                  <Dropdown
-                    key="more"
-                    menu={{
-                      items: [
-                        {
-                          key: 'delete',
-                          label: '删除集合',
-                          icon: <DeleteOutlined />,
-                          danger: true,
-                          onClick: ({ domEvent }) => {
-                            domEvent.stopPropagation()
-                            handleDelete(c)
-                          },
-                        },
-                      ],
-                    }}
-                  >
-                    <span onClick={(e) => e.stopPropagation()}>
-                      <MoreOutlined />
-                    </span>
-                  </Dropdown>,
-                ]}
-              >
-                <Card.Meta
-                  avatar={
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 8,
-                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#fff',
-                        fontSize: 22,
-                      }}
-                    >
-                      <FolderOutlined />
-                    </div>
-                  }
-                  title={c.name}
-                  description={
-                    <Paragraph ellipsis={{ rows: 2 }} style={{ marginBottom: 0, minHeight: 44 }}>
-                      {c.description || '暂无描述'}
-                    </Paragraph>
-                  }
-                />
-              </Card>
+                onDelete={() => handleDelete(c.id)}
+              />
             </Col>
           ))}
         </Row>
       )}
 
-      <Modal
-        title="新建知识集合"
-        open={createOpen}
-        onOk={handleCreate}
-        onCancel={() => setCreateOpen(false)}
-        okText="创建"
-        cancelText="取消"
-      >
-        <Input
-          placeholder="集合名称"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          style={{ marginBottom: 12 }}
-        />
-        <TextArea
-          placeholder="简介（可选）"
-          value={newDesc}
-          rows={3}
-          onChange={(e) => setNewDesc(e.target.value)}
-        />
+      <Modal title="新建知识集合" open={createOpen} onOk={handleCreate} onCancel={() => setCreateOpen(false)} okText="创建" cancelText="取消">
+        <div style={{ paddingTop: 8 }}>
+          <Input placeholder="集合名称" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ marginBottom: 12 }} />
+          <TextArea placeholder="简介（可选）" value={newDesc} rows={3} onChange={(e) => setNewDesc(e.target.value)} />
+        </div>
       </Modal>
     </div>
   )
