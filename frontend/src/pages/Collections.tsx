@@ -11,6 +11,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { api, type Collection } from '../api/client'
 import CollectionCard from '../components/CollectionCard'
 import EmptyState from '../components/EmptyState'
+import { copyToClipboard } from '../utils/clipboard'
 
 const { TextArea } = Input
 
@@ -123,9 +124,10 @@ export default function Collections() {
     )
   }
 
-  const copyShareUrl = () => {
-    navigator.clipboard.writeText(shareUrl)
-    message.success('链接已复制')
+  const copyShareUrl = async () => {
+    const ok = await copyToClipboard(shareUrl)
+    if (ok) message.success('链接已复制')
+    else message.warning('复制失败，请手动选中链接复制')
   }
 
   return (

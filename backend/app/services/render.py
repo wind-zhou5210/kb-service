@@ -115,6 +115,25 @@ RESIZE_SCRIPT = """
     document.body, {subtree:true, childList:true, attributes:true}
   );
   window.addEventListener('resize', function(){ clearTimeout(t); t=setTimeout(report,100); });
+  // 拦截锚点链接（href 以 # 开头）：sandbox 阻止片段导航会导致 iframe 重新加载为空白，
+  // 故阻止默认导航，改用 scrollIntoView 在 iframe 内定位目标元素。
+  document.addEventListener('click', function(e){
+    var a = e.target.closest && e.target.closest('a[href]');
+    if (!a) return;
+    var href = a.getAttribute('href');
+    if (!href || href.charAt(0) !== '#') return;
+    e.preventDefault();
+    var id = href.slice(1);
+    if (!id) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    var el = document.getElementById(id) || (document.getElementsByName(id)[0]);
+    if (el) {
+      // iframe 固定视口高度、内部可滚动，直接在 iframe 内滚动到目标。
+      // 这样 HTML 文档自带的 position:fixed 侧边导航保持固定，仅内容滚动（与真实浏览器一致）。
+      var rect = el.getBoundingClientRect();
+      var curTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop;
+      window.scrollTo({ top: curTop + rect.top - 10, behavior: 'smooth' });
+    }
+  });
 })();
 </script>
 """
