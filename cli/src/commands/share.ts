@@ -5,11 +5,21 @@ import { loadConfig } from '../config';
 import ora from 'ora';
 
 export function registerShareCommands(program: Command): void {
-  const share = program.command('share').description('管理分享链接');
+  const share = program
+    .command('share')
+    .description('管理分享链接 — 生成只读访问链接')
+    .addHelpText(
+      'after',
+      `
+示例:
+  $ kb share collection 1          生成集合分享链接
+  $ kb share collection 1 --json   以 JSON 格式输出分享信息
+  $ kb share document 5            生成文档分享链接`
+    );
 
   share
     .command('collection')
-    .description('生成/查看集合分享链接')
+    .description('为指定集合生成只读分享链接')
     .argument('<id>', '集合 ID')
     .option('--json', 'JSON 格式输出')
     .action(async (id: string, options) => {

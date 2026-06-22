@@ -73,8 +73,8 @@ export function registerDocumentCommands(program: Command): void {
   // ------ push ------
   program
     .command('push')
-    .description('上传文件到知识库集合')
-    .argument('<files...>', '文件路径（支持通配符）')
+    .description('上传 .md / .html 文件到指定集合')
+    .argument('<files...>', '文件路径，支持通配符（如 docs/*.md）')
     .requiredOption('-c, --collection <id>', '目标集合 ID')
     .action(async (files: string[], options) => {
       const resolved = resolveFiles(files);
@@ -130,7 +130,7 @@ export function registerDocumentCommands(program: Command): void {
   // ------ list ------
   program
     .command('list')
-    .description('列出集合下的文档')
+    .description('列出指定集合下的全部文档')
     .requiredOption('-c, --collection <id>', '集合 ID')
     .option('--json', 'JSON 格式输出')
     .action(async (options) => {
@@ -164,7 +164,7 @@ export function registerDocumentCommands(program: Command): void {
   // ------ search ------
   program
     .command('search')
-    .description('全文检索')
+    .description('全文检索已上传的文档内容')
     .argument('<query>', '搜索关键词')
     .option('--json', 'JSON 格式输出')
     .action(async (query: string, options) => {

@@ -7,9 +7,9 @@ import { resetClient } from '../client';
 export function registerAuthCommands(program: Command): void {
   program
     .command('login')
-    .description('登录 kb-service')
-    .argument('[username]', '用户名（可选，未传则交互输入）')
-    .option('-u, --username <user>', '用户名（同位置参数，二选一）')
+    .description('登录 kb-service，获取访问凭据（需先配置服务地址）')
+    .argument('[username]', '管理员用户名，不传则交互式输入')
+    .option('-u, --username <user>', '用户名（同位置参数）')
     .action(async (usernameArg: string | undefined, options) => {
       try {
         const provider = new PasswordAuthProvider();
