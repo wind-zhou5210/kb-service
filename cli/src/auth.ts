@@ -104,32 +104,40 @@ function askPasswordRaw(
 }
 
 /**
- * Windows 非 TTY 回退：单个 readline 实例链式收集用户名和密码
- * 避免 readline.close() 后 stdin 不可读的问题
+ * Windows 非 TTY 回退：使用 stdin.on('data') 状态机收集凭据
+ * 避免 readline 在 PowerShell 下嵌套 question() 无法触发第二次输入的问题
  */
 function promptCredentialsWindows(
   presetUsername?: string
 ): Promise<{ user: string; password: string }> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
+  const stdin = process.stdin;
+  const stdout = process.stdout;
 
-    const askPass = (user: string) => {
-      rl.question('密码: ', (pass) => {
-        rl.close();
-        resolve({ user, password: pass.trim() });
-      });
+  return new Promise((resolve) => {
+    let user = presetUsername || '';
+    let password = '';
+    let step: 'user' | 'pass' = presetUsername ? 'pass' : 'user';
+
+    // 确保 stdin 可读
+    if (stdin.isPaused()) stdin.resume();
+
+    stdout.write(step === 'user' ? '用户名: ' : '密码: ');
+
+    const onData = (chunk: Buffer) => {
+      const line = chunk.toString().trim();
+      if (step === 'user') {
+        user = line;
+        step = 'pass';
+        stdout.write('密码: ');
+      } else {
+        password = line;
+        stdin.removeListener('data', onData);
+        stdin.pause();
+        resolve({ user, password });
+      }
     };
 
-    if (presetUsername) {
-      askPass(presetUsername);
-    } else {
-      rl.question('用户名: ', (user) => {
-        askPass(user.trim());
-      });
-    }
+    stdin.on('data', onData);
   });
 }
 

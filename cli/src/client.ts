@@ -27,6 +27,7 @@ export function getClient(): AxiosInstance {
     clientInstance.interceptors.response.use(
       (res) => res,
       (err) => {
+        // 统一转换为 Error 实例，避免 [object Object] 报错
         if (axios.isAxiosError(err) && err.response?.status === 401) {
           throw new Error('登录已过期，请重新执行: kb login');
         }
@@ -39,7 +40,12 @@ export function getClient(): AxiosInstance {
         if (axios.isAxiosError(err) && err.response?.data?.detail) {
           throw new Error(err.response.data.detail);
         }
-        throw err;
+        // 提取可读错误消息
+        const msg =
+          (axios.isAxiosError(err) && err.message) ||
+          (err instanceof Error && err.message) ||
+          String(err);
+        throw new Error(msg);
       }
     );
   }

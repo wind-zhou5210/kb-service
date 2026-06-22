@@ -97,6 +97,15 @@ export function registerDocumentCommands(program: Command): void {
           form.append('files', fs.createReadStream(f), path.basename(f));
         }
 
+        // 检查是否有有效文件被添加到表单
+        const formLength = (form as any)._streams?.filter(
+          (s: any) => s && typeof s !== 'function'
+        ).length || 0;
+        if (formLength === 0) {
+          spinner.fail('所有文件均被跳过（仅支持 .md/.html/.htm）');
+          process.exit(1);
+        }
+
         const colId = options.collection;
         const { data } = await client.post<DocumentItem[]>(
           `/api/collections/${colId}/documents`,
