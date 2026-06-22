@@ -1,3 +1,6 @@
+# 环境变量
+.env
+
 # 后端
 backend/__pycache__/
 backend/**/__pycache__/
