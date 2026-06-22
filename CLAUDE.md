@@ -42,7 +42,7 @@ React 18 SPA (Vite + TS)  <-->  FastAPI (asyncio)  <-->  SQLite + 文件系统
 
 - **后端** `backend/`：Python FastAPI，REST JSON API。入口 `app/main.py`。
 - **前端** `frontend/`：React 18 + Vite + TypeScript + Ant Design v5。入口 `src/main.tsx`。
-- **CLI** `cli/`：Node.js TypeScript 命令行工具 `kb-cli`（`npm i -g kb-cli`），commander + axios。入口 `src/index.ts`。
+- **CLI** `cli/`：Node.js TypeScript 命令行工具 `kb-service-cli`（`npm i -g kb-service-cli`），commander + axios。入口 `src/index.ts`，bin 名 `kb`。
 - **存储**：文件内容按 SHA1 寻址存储，引用计数管理。`StorageBackend` Protocol 可替换为 S3。
 - **数据库**：SQLite（aiosqlite 异步驱动），含 FTS5 全文检索虚拟表。
 
@@ -53,11 +53,12 @@ app/
   main.py               # FastAPI 应用入口、lifespan、CORS、路由挂载
   models.py              # SQLModel ORM：Collection, Document, FileBlob
   api/
-    auth.py              # POST /api/auth/login（JWT 签发，明文密码比较）
+    auth.py              # POST /api/auth/login（JWT 签发）
     collections.py       # /api/collections CRUD + 分享令牌
-    documents.py         # 文档 CRUD、上传、原始内容获取、FTS 同步
+    documents.py         # 文档 CRUD、上传、原始内容获取、下载、分享
     search.py            # GET /api/search?q=（FTS5 MATCH 全文检索）
     share.py             # GET /api/share/{token}（无需认证的公共只读访问）
+    doc_share.py         # GET /api/share/doc/{token}（单文档分享访问）
   core/
     config.py            # pydantic-settings，KB_ 前缀环境变量
     database.py          # 异步 SQLAlchemy 引擎、AsyncSession、init_db()
@@ -99,9 +100,10 @@ src/
 ## API 约定
 
 - `GET/POST/PATCH/DELETE` REST 风格，标准状态码
-- 认证：除 `/api/auth/login` 和 `/api/share/{token}` 外，全部需要 Bearer JWT
+- 认证：写操作需 Bearer JWT（读接口待加鉴权，未登录仅可访问分享链接）
 - JWT 通过 `python-jose` HS256 签发，默认 7 天过期
-- 402/404/401/413 错误返回 `{"detail": "message"}`
+- 404/401/413 错误返回 `{"detail": "message"}`
+- CLI npm 包名 `kb-service-cli`，bin 命令名 `kb`
 
 ## CLI 工具 (`cli/`)
 
