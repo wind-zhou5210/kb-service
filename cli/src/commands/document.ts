@@ -236,6 +236,7 @@ export function registerDocumentCommands(program: Command): void {
           responseType: 'stream',
         });
         const outputPath = path.join(options.output, doc.filename);
+        fs.mkdirSync(path.dirname(outputPath), { recursive: true });
         const writer = fs.createWriteStream(outputPath);
         res.data.pipe(writer);
         await new Promise<void>((resolve, reject) => {
