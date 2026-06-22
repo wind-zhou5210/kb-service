@@ -127,7 +127,6 @@ function promptCredentialsWindows(
 
     rl.on('line', (line) => {
       const val = line.trim();
-      process.stderr.write(`[D] line="${val}" step=${step}\n`);
       if (step === 'user') {
         user = val;
         step = 'pass';
