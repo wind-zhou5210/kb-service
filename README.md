@@ -1,36 +1,48 @@
 # 文件知识管理服务
 
-自托管的文件型知识库：支持创建知识集合、上传 Markdown / HTML 文件，并在线安全渲染。
+自托管的文件型知识库：支持创建知识集合、上传 Markdown / HTML 文件，并在线安全渲染。提供 Web 界面和命令行工具两种使用方式。
 
 核心特点：
 - **Markdown 渲染**：`react-markdown` + remark/rehype 插件（GFM、代码高亮、KaTeX 公式、锚点目录），默认禁用原始 HTML，杜绝 XSS。
 - **HTML 渲染**：`iframe sandbox`（仅 `allow-scripts`）浏览器原生隔离，保留原貌脚本与样式的同时杜绝逃逸；服务端 bleach 二次净化高危事件属性；postMessage 上报高度实现自适应。
 - **内容寻址存储**：文件按 sha1 去重，引用计数自动清理。
-- **技术栈**：FastAPI（asyncio）+ SQLite + React 18 + Ant Design 5。
+- **CLI 工具**：`kb` 命令行，终端完成上传、搜索、管理，支持 JSON 输出。`npm install -g kb-service-cli`。
+- **技术栈**：FastAPI（asyncio）+ SQLite + React 18 + Ant Design 5 + TypeScript CLI。
 
 ## 目录结构
 
 ```
 .
-├─ backend/              FastAPI 后端
-│  ├─ app/
-│  │  ├─ api/            路由（auth / collections / documents）
-│  │  ├─ core/           配置 / 数据库 / 鉴权
-│  │  ├─ services/       渲染服务（HTML 净化 + 高度脚本注入）
-│  │  ├─ storage/        内容寻址存储适配器
-│  │  ├─ models.py       数据模型
-│  │  └─ main.py         入口
-│  ├─ requirements.txt
-│  └─ Dockerfile
-├─ frontend/             React 前端
-│  ├─ src/
-│  │  ├─ pages/          Login / Collections / CollectionDetail
-│  │  ├─ components/     MarkdownViewer / HtmlSandbox / UploadModal
-│  │  ├─ api/            axios 封装
-│  │  └─ store/          zustand
-│  └─ Dockerfile
-├─ docker-compose.yml
-└─ 文件知识管理服务-架构方案.md
+├── backend/              FastAPI 后端
+│   ├── app/
+│   │   ├── api/            路由（auth / collections / documents / search / share）
+│   │   ├── core/           配置 / 数据库 / 鉴权
+│   │   ├── services/       渲染服务（HTML 净化 + 高度脚本注入）
+│   │   ├── storage/        内容寻址存储适配器
+│   │   ├── models.py       数据模型
+│   │   └── main.py         入口
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/             React 前端
+│   ├── src/
+│   │   ├── pages/          Login / Collections / CollectionDetail / Search
+│   │   ├── components/     MarkdownViewer / HtmlSandbox / UploadModal
+│   │   ├── api/            axios 封装
+│   │   └── store/          zustand
+│   └── Dockerfile
+├── cli/                  kb 命令行工具
+│   ├── src/
+│   │   ├── commands/       auth / config / collection / document / share
+│   │   └── utils/          table / format / prompt
+│   ├── package.json
+│   └── README.md
+├── docs/                 设计文档
+│   └── plans/             实现计划
+├── specs/                需求规范
+│   ├── 001-doc-fullscreen-and-share/
+│   └── 002-kb-cli/
+├── docker-compose.yml
+└── 文件知识管理服务-架构方案.md
 ```
 
 ## 快速开始（Docker Compose）
@@ -43,6 +55,21 @@ docker compose up -d --build
 ```
 
 数据持久化在 `./data/`（原文 + SQLite）。
+
+## CLI 工具
+
+```bash
+# 安装
+npm install -g kb-service-cli
+
+# 快速上手
+kb config set server https://kb.example.com
+kb login admin
+kb push ./doc.md -c 1
+kb search "关键词"
+```
+
+支持 17 条命令覆盖全部操作，详见 [cli/README.md](cli/README.md)。
 
 ## 本地开发
 
@@ -65,6 +92,16 @@ npm install
 npm run dev    # http://localhost:5173 ，/api 自动代理到 8000
 ```
 
+### CLI
+
+```bash
+cd cli
+npm install
+npm run build              # 编译 TypeScript
+npm run start -- config get  # 运行命令
+node dist/index.js --help    # 直接运行
+```
+
 > 注意：本环境的 Node 被 `NODE_OPTIONS` 预加载了一个损坏的 shim，若遇 `genie-safe-delete.cjs` 报错，执行命令前加 `NODE_OPTIONS=` 清空即可。
 
 ## 安全要点
@@ -75,11 +112,15 @@ npm run dev    # http://localhost:5173 ，/api 自动代理到 8000
 | HTML | iframe `sandbox="allow-scripts"`（绝不同时加 `allow-same-origin`）+ 服务端 bleach 净化 on* 事件属性 + 注入高度上报脚本 |
 | 上传 | 扩展名白名单 `.md/.html/.htm` + 大小限制 |
 | API | JWT 鉴权 + 集合归属校验 |
+| CLI | 凭据存储在 `~/.kbconfig.json`，密码输入不回显 |
 
 详见 `文件知识管理服务-架构方案.md` 第七章。
 
 ## 路线图
 
 - [x] MVP：集合 / 文件 CRUD + 上传 + Markdown / HTML 渲染 + JWT 登录
-- [ ] 全文检索（SQLite FTS5）、标签、拖拽排序、只读分享链接
+- [x] 全文检索（SQLite FTS5）、标签、拖拽排序、只读分享链接、文档全屏模式
+- [x] CLI 命令行工具（npm 发布 `kb-service-cli`）
+- [ ] 后端读接口鉴权（未登录仅可访问分享文档）
+- [ ] 撤销分享链接
 - [ ] 在线 Markdown 编辑器、版本历史、S3 存储

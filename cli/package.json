@@ -1,0 +1,52 @@
+{
+  "name": "kb-service-cli",
+  "version": "0.1.0",
+  "description": "kb-service 知识库命令行工具 — 终端完成知识的上传、管理与检索",
+  "keywords": [
+    "kb-service",
+    "knowledge-base",
+    "cli",
+    "markdown",
+    "document-management"
+  ],
+  "homepage": "https://github.com/wind-zhou5210/kb-service#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wind-zhou5210/kb-service.git",
+    "directory": "cli"
+  },
+  "license": "MIT",
+  "author": "wind-zhou5210",
+  "bin": {
+    "kb": "./dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "run": "node dist/index.js",
+    "ts": "ts-node src/index.ts",
+    "debug": "node --inspect-brk dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "chalk": "^4.1.2",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "form-data": "^4.0.0",
+    "ora": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  }
+}

@@ -15,6 +15,10 @@ frontend/vite.config.js
 # 数据
 data/
 
+# CLI
+cli/node_modules/
+cli/dist/
+
 # 系统
 .DS_Store
 *.log
