@@ -21,19 +21,15 @@ export class PasswordAuthProvider implements AuthProvider {
     let user: string;
     let password: string;
 
-    if (username) {
-      user = username;
-    } else {
-      user = await askQuestion('用户名: ');
-    }
-
-    // 输入密码
     if (hasRawMode) {
-      // Unix / Git Bash：raw mode，逐字符读，回显 *
+      // Unix / Git Bash：readline 问用户名 + raw mode 输密码
+      user = username || (await askQuestion('用户名: '));
       password = await askPasswordRaw(stdin, stdout, '密码: ');
     } else {
-      // Windows PowerShell / cmd：readline 行模式，明文
-      password = await askPasswordLine('密码: ');
+      // Windows：单个 readline 链式收集用户名+密码，避免 close 后 stdin 不可读
+      const creds = await promptCredentialsWindows(username);
+      user = creds.user;
+      password = creds.password;
     }
 
     const spinner = ora('正在验证...').start();
@@ -108,29 +104,32 @@ function askPasswordRaw(
 }
 
 /**
- * Windows 非 TTY 回退：使用 process.stdin 直接监听 data 事件
- * 避免 readline.createInterface 关闭后无法再读 stdin 的问题
+ * Windows 非 TTY 回退：单个 readline 实例链式收集用户名和密码
+ * 避免 readline.close() 后 stdin 不可读的问题
  */
-function askPasswordLine(prompt: string): Promise<string> {
-  const stdin = process.stdin;
-  const stdout = process.stdout;
-
+function promptCredentialsWindows(
+  presetUsername?: string
+): Promise<{ user: string; password: string }> {
   return new Promise((resolve) => {
-    stdout.write(`(密码将明文显示) ${prompt}`);
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
 
-    // 确保 stdin 处于 flowing 模式
-    if (stdin.isPaused()) {
-      stdin.resume();
-    }
-
-    const onData = (chunk: Buffer) => {
-      const line = chunk.toString().trim();
-      stdin.removeListener('data', onData);
-      stdin.pause();
-      resolve(line);
+    const askPass = (user: string) => {
+      rl.question('密码: ', (pass) => {
+        rl.close();
+        resolve({ user, password: pass.trim() });
+      });
     };
 
-    stdin.on('data', onData);
+    if (presetUsername) {
+      askPass(presetUsername);
+    } else {
+      rl.question('用户名: ', (user) => {
+        askPass(user.trim());
+      });
+    }
   });
 }
 
