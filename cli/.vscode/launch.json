@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "kb (debug)",
+      "runtimeArgs": ["-r", "ts-node/register"],
+      "args": ["${input:kbArgs}"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "kb (compiled)",
+      "program": "${workspaceFolder}/dist/index.js",
+      "args": ["${input:kbArgs}"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "kbArgs",
+      "type": "promptString",
+      "description": "输入 kb 命令和参数（不带 kb），例如：config get 或 push ./doc.md -c 1",
+      "default": "config get"
+    }
+  ]
+}
