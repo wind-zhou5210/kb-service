@@ -16,12 +16,14 @@ export class PasswordAuthProvider implements AuthProvider {
   async login(username?: string): Promise<string> {
     const stdin = process.stdin;
     const stdout = process.stdout;
-    const isTTY = Boolean(stdin.isTTY);
+    // Windows PowerShell 下 isTTY 可能为 true 但 raw mode 不工作
+    const isWin = process.platform === 'win32';
+    const useRaw = !isWin && Boolean(stdin.isTTY);
 
     let user: string;
     let password: string;
 
-    if (isTTY) {
+    if (useRaw) {
       // Unix / Git Bash：readline 问用户名 + raw mode 输密码
       user = username || (await askQuestion('用户名: '));
       password = await askPasswordRaw(stdin, stdout, '密码: ');
@@ -104,40 +106,38 @@ function askPasswordRaw(
 }
 
 /**
- * Windows 非 TTY 回退：使用 stdin.on('data') 状态机收集凭据
- * 避免 readline 在 PowerShell 下嵌套 question() 无法触发第二次输入的问题
+ * Windows 非 TTY 模式：强制 terminal: true 让 readline 正常工作
  */
 function promptCredentialsWindows(
   presetUsername?: string
 ): Promise<{ user: string; password: string }> {
-  const stdin = process.stdin;
-  const stdout = process.stdout;
-
   return new Promise((resolve) => {
+    // terminal: true 强制 readline 按终端模式处理
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: true,
+    });
+
     let user = presetUsername || '';
-    let password = '';
     let step: 'user' | 'pass' = presetUsername ? 'pass' : 'user';
 
-    // 确保 stdin 可读
-    if (stdin.isPaused()) stdin.resume();
+    rl.setPrompt(step === 'user' ? '用户名: ' : '密码: ');
+    rl.prompt();
 
-    stdout.write(step === 'user' ? '用户名: ' : '密码: ');
-
-    const onData = (chunk: Buffer) => {
-      const line = chunk.toString().trim();
+    rl.on('line', (line) => {
+      const val = line.trim();
+      process.stderr.write(`[D] line="${val}" step=${step}\n`);
       if (step === 'user') {
-        user = line;
+        user = val;
         step = 'pass';
-        stdout.write('密码: ');
+        rl.setPrompt('密码: ');
+        rl.prompt();
       } else {
-        password = line;
-        stdin.removeListener('data', onData);
-        stdin.pause();
-        resolve({ user, password });
+        rl.close();
+        resolve({ user, password: val });
       }
-    };
-
-    stdin.on('data', onData);
+    });
   });
 }
 
