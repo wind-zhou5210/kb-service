@@ -16,12 +16,12 @@ export class PasswordAuthProvider implements AuthProvider {
   async login(username?: string): Promise<string> {
     const stdin = process.stdin;
     const stdout = process.stdout;
-    const hasRawMode = typeof stdin.setRawMode === 'function';
+    const isTTY = Boolean(stdin.isTTY);
 
     let user: string;
     let password: string;
 
-    if (hasRawMode) {
+    if (isTTY) {
       // Unix / Git Bash：readline 问用户名 + raw mode 输密码
       user = username || (await askQuestion('用户名: '));
       password = await askPasswordRaw(stdin, stdout, '密码: ');
