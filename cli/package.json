@@ -1,5 +1,5 @@
 {
-  "name": "kb-cli",
+  "name": "kb-service-cli",
   "version": "0.1.0",
   "description": "kb-service 知识库命令行工具 — 终端完成知识的上传、管理与检索",
   "keywords": [

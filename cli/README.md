@@ -1,4 +1,4 @@
-# kb-cli
+# kb-service-cli
 
 > kb-service 知识库命令行工具 — 终端即可完成知识的上传、管理与检索
 
