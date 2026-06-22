@@ -1,3 +1,7 @@
+# 环境变量
+.env
+cli/dist/
+cli/node_modules
 # 后端
 backend/__pycache__/
 backend/**/__pycache__/
