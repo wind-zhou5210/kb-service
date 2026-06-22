@@ -14,8 +14,27 @@ export interface AuthProvider {
  */
 export class PasswordAuthProvider implements AuthProvider {
   async login(username?: string): Promise<string> {
-    const user = username || (await askQuestion('用户名: '));
-    const password = await askPassword('密码: ');
+    const stdin = process.stdin;
+    const stdout = process.stdout;
+    const hasRawMode = typeof stdin.setRawMode === 'function';
+
+    let user: string;
+    let password: string;
+
+    if (username) {
+      user = username;
+    } else {
+      user = await askQuestion('用户名: ');
+    }
+
+    // 输入密码
+    if (hasRawMode) {
+      // Unix / Git Bash：raw mode，逐字符读，回显 *
+      password = await askPasswordRaw(stdin, stdout, '密码: ');
+    } else {
+      // Windows PowerShell / cmd：readline 行模式，明文
+      password = await askPasswordLine('密码: ');
+    }
 
     const spinner = ora('正在验证...').start();
     try {
@@ -56,47 +75,62 @@ function askQuestion(prompt: string): Promise<string> {
   });
 }
 
-function askPassword(prompt: string): Promise<string> {
-  const stdout = process.stdout;
-  const stdin = process.stdin;
-  const hasRawMode = typeof stdin.setRawMode === 'function';
-
-  // 如果支持 raw mode（Unix/Mac/Git Bash），逐字符读取并回显 *
-  if (hasRawMode) {
-    return new Promise((resolve) => {
-      stdin.setRawMode(true);
-      stdout.write(prompt);
-      let pass = '';
-      const onData = (chunk: Buffer) => {
-        const str = chunk.toString();
-        for (const char of str) {
-          if (char === '\r' || char === '\n') {
-            stdin.removeListener('data', onData);
-            stdin.setRawMode(false);
-            stdout.write('\n');
-            resolve(pass);
-            return;
-          } else if (char === '\x7f' || char === '\b') {
-            pass = pass.slice(0, -1);
-          } else if (char === '\x03') {
-            process.exit(1);
-          } else {
-            pass += char;
-            stdout.write('*');
-          }
-        }
-      };
-      stdin.on('data', onData);
-    });
-  }
-
-  // Windows PowerShell/cmd：不支持 raw mode，使用行缓冲（密码明文可见）
+/** Unix raw mode：逐字符读取，密码回显 * */
+function askPasswordRaw(
+  stdin: NodeJS.ReadStream & { fd: 0 },
+  stdout: NodeJS.WriteStream,
+  prompt: string
+): Promise<string> {
   return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: stdin, output: stdout });
-    rl.question(`(密码将在终端明文显示) ${prompt}`, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
+    stdin.setRawMode(true);
+    stdout.write(prompt);
+    let pass = '';
+    const onData = (chunk: Buffer) => {
+      for (const char of chunk.toString()) {
+        if (char === '\r' || char === '\n') {
+          stdin.removeListener('data', onData);
+          stdin.setRawMode(false);
+          stdout.write('\n');
+          resolve(pass);
+          return;
+        } else if (char === '\x7f' || char === '\b') {
+          pass = pass.slice(0, -1);
+        } else if (char === '\x03') {
+          process.exit(1);
+        } else {
+          pass += char;
+          stdout.write('*');
+        }
+      }
+    };
+    stdin.on('data', onData);
+  });
+}
+
+/**
+ * Windows 非 TTY 回退：使用 process.stdin 直接监听 data 事件
+ * 避免 readline.createInterface 关闭后无法再读 stdin 的问题
+ */
+function askPasswordLine(prompt: string): Promise<string> {
+  const stdin = process.stdin;
+  const stdout = process.stdout;
+
+  return new Promise((resolve) => {
+    stdout.write(`(密码将明文显示) ${prompt}`);
+
+    // 确保 stdin 处于 flowing 模式
+    if (stdin.isPaused()) {
+      stdin.resume();
+    }
+
+    const onData = (chunk: Buffer) => {
+      const line = chunk.toString().trim();
+      stdin.removeListener('data', onData);
+      stdin.pause();
+      resolve(line);
+    };
+
+    stdin.on('data', onData);
   });
 }
 

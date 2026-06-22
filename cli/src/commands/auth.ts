@@ -8,11 +8,12 @@ export function registerAuthCommands(program: Command): void {
   program
     .command('login')
     .description('登录 kb-service')
-    .option('-u, --username <user>', '用户名')
-    .action(async (options) => {
+    .argument('[username]', '用户名（可选，未传则交互输入）')
+    .option('-u, --username <user>', '用户名（同位置参数，二选一）')
+    .action(async (usernameArg: string | undefined, options) => {
       try {
         const provider = new PasswordAuthProvider();
-        await provider.login(options.username);
+        await provider.login(usernameArg || options.username);
         const cfg = loadConfig();
         printSuccess(`登录成功！当前用户: ${cfg.username}  |  服务端: ${cfg.server}`);
       } catch (err: any) {
