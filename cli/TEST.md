@@ -1,6 +1,6 @@
 # kb-cli 测试用例
 
-> 前置条件：后端运行在 `http://localhost:8000`，管理员账号 `admin / admin123`
+> 前置条件：后端运行在 `http://49.232.202.197:8000`，管理员账号 `admin / Kb@2026Secure!`
 
 ## 环境准备
 
@@ -9,7 +9,7 @@ cd D:\th\kb-service\cli
 npm run build
 
 # 连接后端
-npm run start config set server http://localhost:8000
+npm run start config set server http://49.232.202.197:8000
 ```
 
 ---
@@ -30,7 +30,7 @@ config_path  ~/.kbconfig.json
 
 ### 1.2 设置服务端地址
 ```bash
-npm run start config set server http://localhost:8000
+npm run start config set server http://49.232.202.197:8000
 ```
 **预期输出：**
 ```diff
@@ -95,7 +95,7 @@ npm run start login admin
 ```diff
 ✗ 无法连接到服务端，请检查地址: http://localhost:9999
 ```
-> 恢复：`npm run start config set server http://localhost:8000`
+> 恢复：`npm run start config set server http://49.232.202.197:8000`
 
 ### 2.5 查看当前用户
 ```bash
@@ -477,7 +477,7 @@ npm run start share collection 99999
 
 ```bash
 # 1. 配置
-npm run start config set server http://localhost:8000
+npm run start config set server http://49.232.202.197:8000
 npm run start config get
 
 # 2. 登录
