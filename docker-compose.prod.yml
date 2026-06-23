@@ -1,0 +1,19 @@
+services:
+  backend:
+    image: registry.cn-hangzhou.aliyuncs.com/wind-zhou/brilliant:backend-latest
+    container_name: kb-backend
+    volumes:
+      - ./data/files:/data/files
+      - ./data/db:/data/db
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  frontend:
+    image: registry.cn-hangzhou.aliyuncs.com/wind-zhou/brilliant:frontend-latest
+    container_name: kb-frontend
+    ports:
+      - "8000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

@@ -55,9 +55,15 @@ else
     log_info ".env 已存在，跳过生成。"
 fi
 
-# ---------- 4. 构建并启动 ----------
-log_info "开始构建镜像并启动服务..."
-$COMPOSE_CMD up -d --build
+# ---------- 4. 拉取镜像并启动 ----------
+log_info "从阿里云 ACR 拉取镜像..."
+$COMPOSE_CMD -f docker-compose.prod.yml pull
+
+log_info "启动服务..."
+$COMPOSE_CMD -f docker-compose.prod.yml up -d --remove-orphans
+
+# 清理旧镜像
+docker image prune -f
 
 # ---------- 5. 完成 ----------
 log_info "部署完成！"
@@ -65,6 +71,6 @@ echo "  访问地址: http://localhost:8000"
 echo "  管理员:   admin / admin123"
 echo ""
 echo "  常用命令:"
-echo "    $COMPOSE_CMD ps          查看服务状态"
-echo "    $COMPOSE_CMD logs -f     查看实时日志"
-echo "    $COMPOSE_CMD down        停止并移除服务"
+echo "    $COMPOSE_CMD -f docker-compose.prod.yml ps      查看服务状态"
+echo "    $COMPOSE_CMD -f docker-compose.prod.yml logs -f  查看实时日志"
+echo "    $COMPOSE_CMD -f docker-compose.prod.yml down     停止并移除服务"
