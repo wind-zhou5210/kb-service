@@ -9,8 +9,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 构建与运行
 
 ```bash
-# 生产部署（推荐）
+# 本地开发部署（服务器上直接构建镜像）
 docker compose up -d --build
+
+# 生产部署（从阿里云 ACR 拉取预构建镜像，推荐）
+./deploy.sh
+
+# CI/CD 自动部署
+# push 到 main 分支时 GitHub Actions 自动触发
+# .github/workflows/deploy.yml — 校验 → 构建推送 ACR → SSH 部署
 
 # 本地后端开发
 cd backend
@@ -32,6 +39,13 @@ node dist/index.js    # 运行 CLI
 
 项目无 Makefile，无单元测试（MVP 阶段）。
 
+## Docker Compose 文件
+
+- `docker-compose.yml`：本地开发，使用 `build:` 在本地构建镜像
+- `docker-compose.prod.yml`：生产部署，使用 `image:` 从 ACR 拉取预构建镜像
+  - ACR 地址：`registry.cn-hangzhou.aliyuncs.com/wind-zhou/brilliant`
+  - Tag 策略：`backend-latest` / `frontend-latest` + Git SHA
+
 ## 架构
 
 ```
@@ -43,6 +57,7 @@ React 18 SPA (Vite + TS)  <-->  FastAPI (asyncio)  <-->  SQLite + 文件系统
 - **后端** `backend/`：Python FastAPI，REST JSON API。入口 `app/main.py`。
 - **前端** `frontend/`：React 18 + Vite + TypeScript + Ant Design v5。入口 `src/main.tsx`。
 - **CLI** `cli/`：Node.js TypeScript 命令行工具 `kb-service-cli`（`npm i -g kb-service-cli`），commander + axios。入口 `src/index.ts`，bin 名 `kb`。
+- **CI/CD** `.github/workflows/deploy.yml`：GitHub Actions，push to main 自动触发 — 前端构建校验 + 后端语法检查 → Docker 构建推送阿里云 ACR → SSH 服务器拉取部署。
 - **存储**：文件内容按 SHA1 寻址存储，引用计数管理。`StorageBackend` Protocol 可替换为 S3。
 - **数据库**：SQLite（aiosqlite 异步驱动），含 FTS5 全文检索虚拟表。
 
