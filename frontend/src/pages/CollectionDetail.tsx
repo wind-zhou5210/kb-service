@@ -330,7 +330,7 @@ export default function CollectionDetail() {
             </div>
 
             {isMd && tocItems.length > 0 && (
-              <aside style={{ width: 208, flexShrink: 0, borderLeft: '1px solid var(--ink-50)', overflow: 'auto' }}>
+              <aside style={{ width: 208, flexShrink: 0, borderLeft: '1px solid var(--ink-50)' }}>
                 <DocToc items={tocItems} />
               </aside>
             )}

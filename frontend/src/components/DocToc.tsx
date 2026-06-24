@@ -34,8 +34,12 @@ export default function DocToc({ items }: Props) {
   const handleClick = (id: string) => {
     const el = document.getElementById(id)
     if (el) {
-      const top = el.getBoundingClientRect().top + window.scrollY - 68
-      window.scrollTo({ top, behavior: 'smooth' })
+      // 定位到 <main> 滚动容器（而非 window），避免整体页面滚动
+      const container = el.closest('main')
+      if (container) {
+        const offset = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 60
+        container.scrollTo({ top: offset, behavior: 'smooth' })
+      }
     }
   }
 
@@ -56,7 +60,10 @@ export default function DocToc({ items }: Props) {
       <div
         className="toc-item"
         style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--ink-50)' }}
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        onClick={() => {
+          const container = document.querySelector('main')
+          if (container) container.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
       >
         <VerticalAlignTopOutlined /> 回到顶部
       </div>
