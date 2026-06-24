@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip, Select, message } from 'antd'
+import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip, Select, message, Row, Col } from 'antd'
 import {
   ArrowLeftOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined,
   MoreOutlined, SearchOutlined, FileTextOutlined, Html5Outlined, FolderOutlined, EditOutlined,
-  FullscreenOutlined, FullscreenExitOutlined, StopOutlined,
+  FullscreenOutlined, FullscreenExitOutlined, StopOutlined, SwapOutlined,
 } from '@ant-design/icons'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -68,6 +68,9 @@ export default function CollectionDetail() {
   const [fullscreen, setFullscreen] = useState(false)
   const [shareDocModal, setShareDocModal] = useState<DocumentItem | null>(null)
   const [shareDocUrl, setShareDocUrl] = useState('')
+  const [moveModalOpen, setMoveModalOpen] = useState(false)
+  const [moveTarget, setMoveTarget] = useState<DocumentItem | null>(null)
+  const [collections, setCollections] = useState<Collection[]>([])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -183,10 +186,35 @@ export default function CollectionDetail() {
     else message.warning('复制失败，请手动选中链接复制')
   }
 
+  const openMoveModal = async (doc: DocumentItem) => {
+    setMoveTarget(doc)
+    setMoveModalOpen(true)
+    const cols = await api.listCollections()
+    setCollections(cols)
+  }
+
+  const handleMove = async (targetColId: number) => {
+    if (!moveTarget) return
+    try {
+      await api.moveDocument(moveTarget.id, targetColId)
+      const targetCol = collections.find(c => c.id === targetColId)
+      message.success(`已移动到「${targetCol?.name ?? targetColId}」`)
+      setMoveModalOpen(false)
+      setMoveTarget(null)
+      if (selected?.id === moveTarget.id) {
+        setSelected(null); setMdContent(''); setHtmlContent('')
+      }
+      loadDocs()
+    } catch {
+      message.error('移动失败，请重试')
+    }
+  }
+
   const dropdownItems = (doc: DocumentItem) => ({
     items: [
       { key: 'edit', label: '编辑详情', icon: <EditOutlined />, onClick: () => openEdit(doc) },
       { key: 'download', label: '下载', icon: <DownloadOutlined />, onClick: () => window.open(`/api/documents/${doc.id}/download`) },
+      { key: 'move', label: '移动到...', icon: <SwapOutlined />, onClick: () => openMoveModal(doc) },
       ...(doc.share_token ? [{ key: 'revokeShare', label: '取消分享', icon: <StopOutlined />, onClick: async () => { await api.revokeDocShare(doc.id); message.success('已取消分享'); loadDocs() } }] : []),
       { type: 'divider' as const },
       { key: 'delete', label: '删除', icon: <DeleteOutlined />, danger: true, onClick: () => handleDelete(doc) },
@@ -402,6 +430,52 @@ export default function CollectionDetail() {
             <Button type="primary" onClick={copyDocShareUrl} style={{ width: 80 }}>复制</Button>
           </Input.Group>
         </div>
+      </Modal>
+
+      <Modal
+        title={`移动「${moveTarget?.title ?? ''}」`}
+        open={moveModalOpen}
+        onCancel={() => { setMoveModalOpen(false); setMoveTarget(null) }}
+        footer={null}
+        width={640}
+      >
+        {collections.filter(c => c.id !== colId).length === 0 ? (
+          <EmptyState icon={<FolderOutlined />} title="暂无其他集合" description="创建新集合后即可移动文档" />
+        ) : (
+          <Row gutter={[16, 16]} style={{ paddingTop: 8 }}>
+            {collections
+              .filter(c => c.id !== colId)
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map(c => (
+                <Col key={c.id} span={12}>
+                  <div
+                    className="col-card"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => handleMove(c.id)}
+                  >
+                    <div className="body">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 6, background: 'var(--ink-50)',
+                          border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', color: 'var(--ink-500)', fontSize: 15,
+                        }}>
+                          <FolderOutlined />
+                        </div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.name}
+                        </div>
+                      </div>
+                      <div className="desc">{c.description || '暂无描述'}</div>
+                      <div className="meta">
+                        <span>{c.doc_count ?? 0} 篇 · {relativeTime(c.updated_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </Col>
+              ))}
+          </Row>
+        )}
       </Modal>
     </div>
   )
