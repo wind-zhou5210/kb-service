@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip, Select, message, Row, Col } from 'antd'
 import {
   ArrowLeftOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined,
@@ -49,6 +49,7 @@ export default function CollectionDetail() {
   const { id } = useParams<{ id: string }>()
   const colId = Number(id)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [collection, setCollection] = useState<Collection | null>(null)
   const [docs, setDocs] = useState<DocumentItem[]>([])
@@ -107,6 +108,16 @@ export default function CollectionDetail() {
   }, [])
 
   const handleTocReady = useCallback((items: TocItem[]) => setTocItems(items), [])
+
+  // 从搜索结果跳转时自动选中文档
+  useEffect(() => {
+    const docParam = searchParams.get('doc')
+    if (loading || !docParam) return
+    const docId = Number(docParam)
+    if (!docId) return
+    const doc = docs.find(d => d.id === docId)
+    if (doc) viewDoc(doc)
+  }, [loading, docs, searchParams, viewDoc])
 
   const allTags = useMemo(() => {
     const s = new Set<string>()

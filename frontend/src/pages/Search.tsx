@@ -79,7 +79,7 @@ export default function Search() {
           {results.map((r) => (
             <div
               key={r.document_id}
-              onClick={() => navigate(`/collections/${r.collection_id}`)}
+              onClick={() => navigate(`/collections/${r.collection_id}?doc=${r.document_id}`)}
               style={{
                 padding: '14px 18px',
                 background: 'var(--surface)',
