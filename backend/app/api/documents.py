@@ -175,6 +175,10 @@ class DocumentUpdate(BaseModel):
     sort_order: int | None = None
 
 
+class DocumentMove(BaseModel):
+    collection_id: int
+
+
 @router.patch("/documents/{doc_id}")
 async def update_document(
     doc_id: int,
@@ -198,6 +202,53 @@ async def update_document(
 
     await session.commit()
     await session.refresh(doc)
+    return doc
+
+
+@router.post("/documents/{doc_id}/move")
+async def move_document(
+    doc_id: int,
+    body: DocumentMove,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: CurrentUser,
+):
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
+
+    if doc.collection_id == body.collection_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "已在当前集合中")
+
+    target_col = await session.get(Collection, body.collection_id)
+    if not target_col:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "目标集合不存在")
+
+    old_col_id = doc.collection_id
+    old_col = await session.get(Collection, old_col_id)
+
+    # 更新归属
+    doc.collection_id = body.collection_id
+    doc.updated_at = datetime.now(timezone.utc)
+    session.add(doc)
+
+    # 更新新旧集合时间戳
+    now = datetime.now(timezone.utc)
+    if old_col:
+        old_col.updated_at = now
+        session.add(old_col)
+    target_col.updated_at = now
+    session.add(target_col)
+
+    await session.commit()
+    await session.refresh(doc)
+
+    # 更新 FTS 索引中的集合名
+    await session.execute(
+        text("UPDATE fts_index SET collection_name = :name WHERE document_id = :doc_id"),
+        {"name": target_col.name, "doc_id": doc_id},
+    )
+    await session.commit()
+
     return doc
 
 

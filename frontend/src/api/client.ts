@@ -114,6 +114,9 @@ export const api = {
   deleteDocument: (id: number) =>
     client.delete(`/documents/${id}`),
 
+  moveDocument: (docId: number, collectionId: number) =>
+    client.post<DocumentItem>(`/documents/${docId}/move`, { collection_id: collectionId }).then((r) => r.data),
+
   search: (q: string) =>
     client.get<SearchResult[]>('/search', { params: { q } }).then((r) => r.data),
 
