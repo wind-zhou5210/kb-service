@@ -67,8 +67,17 @@ async def upload_document(
     if not col:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "集合不存在")
 
+    # 预查当前集合中所有文档的 content_sha1，用于去重
+    existing_rows = (await session.execute(
+        select(Document.content_sha1).where(Document.collection_id == col_id)
+    )).all()
+    existing_sha1s: set[str] = {row[0] for row in existing_rows}
+
     created = []
+    duplicated: list[str] = []
     file_data_list: list[tuple[bytes, str]] = []
+    seen_in_batch: set[str] = set()  # 同一批次内的 SHA1 去重
+
     for f in files:
         ext = _ext(f.filename or "")
         if ext not in ALLOWED:
@@ -84,6 +93,13 @@ async def upload_document(
             )
 
         sha1, size = await storage.save(data, ext)
+
+        # 去重检测：同批次内重复 或 集合中已存在相同内容的文档
+        if sha1 in seen_in_batch or sha1 in existing_sha1s:
+            duplicated.append(f.filename or "")
+            continue
+
+        seen_in_batch.add(sha1)
 
         # FileBlob 去重：存在则引用计数 +1
         blob = await session.get(FileBlob, sha1)
@@ -105,21 +121,32 @@ async def upload_document(
         created.append(doc)
         file_data_list.append((data, ext))
 
-    col.updated_at = datetime.now(timezone.utc)
-    await session.commit()
-    for d in created:
-        await session.refresh(d)
+    # 全部文件均为重复内容
+    if not created and duplicated:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"以下文件内容与集合中已有文件重复，已跳过: {', '.join(duplicated)}",
+        )
 
-    # 同步 FTS 索引
-    for d, (fdata, fext) in zip(created, file_data_list):
-        body_text = _extract_text(fdata, fext)
-        await session.execute(text(
-            "INSERT INTO fts_index (document_id, title, collection_name, body_text) "
-            "VALUES (:doc_id, :title, :col_name, :body)"
-        ), {"doc_id": d.id, "title": d.title, "col_name": col.name, "body": body_text})
-    await session.commit()
+    if created:
+        col.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+        for d in created:
+            await session.refresh(d)
 
-    return created
+        # 同步 FTS 索引
+        for d, (fdata, fext) in zip(created, file_data_list):
+            body_text = _extract_text(fdata, fext)
+            await session.execute(text(
+                "INSERT INTO fts_index (document_id, title, collection_name, body_text) "
+                "VALUES (:doc_id, :title, :col_name, :body)"
+            ), {"doc_id": d.id, "title": d.title, "col_name": col.name, "body": body_text})
+        await session.commit()
+
+    return UploadResult(
+        created=created,
+        duplicated=duplicated,
+    )
 
 
 @router.get("/documents/{doc_id}")
@@ -166,6 +193,11 @@ async def download_document(
         media_type=media,
         headers={"Content-Disposition": f'attachment; filename="{doc.filename}"'},
     )
+
+
+class UploadResult(BaseModel):
+    created: list  # list of Document — 实际新增的文档
+    duplicated: list[str]  # 因内容重复被跳过的文件名列表
 
 
 class DocumentUpdate(BaseModel):
