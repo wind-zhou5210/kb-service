@@ -27,16 +27,33 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess }: 
     }
     setUploading(true)
     try {
-      await api.uploadDocuments(
+      const result = await api.uploadDocuments(
         collectionId,
         valid.map((f) => f.originFileObj as File),
       )
-      message.success(`成功上传 ${valid.length} 个文件`)
+      const createdCount = result.created?.length ?? valid.length
+      const duplicatedCount = result.duplicated?.length ?? 0
+
+      if (duplicatedCount > 0 && createdCount > 0) {
+        message.success(
+          `成功上传 ${createdCount} 个文件，${duplicatedCount} 个文件因内容重复已跳过`,
+          4,
+        )
+      } else if (duplicatedCount > 0 && createdCount === 0) {
+        message.warning(`上传失败: ${result.duplicated?.join(', ')} 与集合中已有文件内容重复`)
+      } else {
+        message.success(`成功上传 ${createdCount} 个文件`)
+      }
       setFiles([])
       onClose()
       onSuccess()
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '上传失败')
+      const detail = e.response?.data?.detail
+      if (detail) {
+        message.error(detail, 5)
+      } else {
+        message.error('上传失败，请检查网络后重试')
+      }
     } finally {
       setUploading(false)
     }
@@ -67,7 +84,17 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess }: 
       <Dragger
         accept={ACCEPT}
         multiple
-        beforeUpload={() => false}
+        beforeUpload={(file) => {
+          // 检查是否与已选文件重复（按文件名 + 大小判断）
+          const dup = files.find(
+            (f) => f.name === file.name && f.size === file.size,
+          )
+          if (dup) {
+            message.warning(`文件「${file.name}」已在待上传列表中，请勿重复添加`)
+            return Upload.LIST_IGNORE
+          }
+          return false
+        }}
         fileList={files}
         onChange={({ fileList }) => setFiles(fileList)}
         style={{ marginBottom: 16 }}

@@ -97,7 +97,7 @@ export const api = {
   uploadDocuments: (colId: number, files: File[]) => {
     const form = new FormData()
     files.forEach((f) => form.append('files', f))
-    return client.post<DocumentItem[]>(`/collections/${colId}/documents`, form, {
+    return client.post<{ created: DocumentItem[]; duplicated: string[] }>(`/collections/${colId}/documents`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then((r) => r.data)
   },
