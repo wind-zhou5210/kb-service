@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Dropdown, Input } from 'antd'
-import { LogoutOutlined, SearchOutlined } from '@ant-design/icons'
+import { Button, Dropdown, Input } from 'antd'
+import { LogoutOutlined, SearchOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons'
 import { useAuth } from '../store/auth'
+import { useTheme } from '../store/theme'
 
 interface Props {
   children: React.ReactNode
@@ -11,6 +12,10 @@ interface Props {
 export default function AppLayout({ children }: Props) {
   const navigate = useNavigate()
   const logout = useAuth((s) => s.logout)
+  const { theme: currentTheme, toggleTheme } = useTheme((s) => ({
+    theme: s.theme,
+    toggleTheme: s.toggleTheme,
+  }))
   const [q, setQ] = useState('')
 
   const goSearch = () => {
@@ -36,6 +41,13 @@ export default function AppLayout({ children }: Props) {
           style={{ maxWidth: 280, height: 32, borderRadius: 6, marginLeft: 8 }}
         />
         <div style={{ flex: 1 }} />
+        <Button
+          type="text"
+          icon={currentTheme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+          onClick={toggleTheme}
+          title={currentTheme === 'dark' ? '切换亮色模式' : '切换暗色模式'}
+          style={{ color: 'var(--ink-500)' }}
+        />
         <Dropdown
           menu={{ items: [{ key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: logout }] }}
           placement="bottomRight"
