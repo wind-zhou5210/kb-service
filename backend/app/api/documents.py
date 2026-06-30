@@ -4,6 +4,7 @@ import re
 import secrets
 from datetime import datetime, timezone
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
@@ -188,10 +189,13 @@ async def download_document(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
     data = await storage.read(doc.content_sha1)
     media = "text/markdown" if doc.ext == ".md" else "text/html"
+    encoded_filename = quote(doc.filename)
     return Response(
         content=data,
         media_type=media,
-        headers={"Content-Disposition": f'attachment; filename="{doc.filename}"'},
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+        },
     )
 
 
