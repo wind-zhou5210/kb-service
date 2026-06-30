@@ -7,9 +7,18 @@ interface ThemeState {
   toggleTheme: () => void
 }
 
+function getStorage(key: string): string | null {
+  try { return localStorage.getItem(key) } catch { return null }
+}
+
+function setStorage(key: string, value: string) {
+  try { localStorage.setItem(key, value) } catch { /* ignore */ }
+}
+
 function getInitialTheme(): Theme {
-  const stored = localStorage.getItem('kb-theme')
+  const stored = getStorage('kb-theme')
   if (stored === 'dark' || stored === 'light') return stored
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark'
   return 'light'
 }
 
@@ -17,15 +26,15 @@ function applyTheme(theme: Theme) {
   document.documentElement.dataset.theme = theme
 }
 
-// Initialize immediately to avoid flash
-applyTheme(getInitialTheme())
+const initial = getInitialTheme()
+applyTheme(initial)
 
 export const useTheme = create<ThemeState>((set) => ({
-  theme: getInitialTheme(),
+  theme: initial,
   toggleTheme: () =>
     set((state) => {
       const next: Theme = state.theme === 'light' ? 'dark' : 'light'
-      localStorage.setItem('kb-theme', next)
+      setStorage('kb-theme', next)
       applyTheme(next)
       return { theme: next }
     }),
