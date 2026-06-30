@@ -80,6 +80,7 @@ function askPasswordRaw(
   prompt: string
 ): Promise<string> {
   return new Promise((resolve) => {
+    stdin.resume(); // 恢复 readline.close() 导致的 pause
     stdin.setRawMode(true);
     stdout.write(prompt);
     let pass = '';
