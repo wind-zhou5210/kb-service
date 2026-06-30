@@ -361,3 +361,55 @@ body {
 
 /* ---- 搜索结果项 ---- */
 .search-result-item:hover { border-color: var(--ink-400) !important; }
+
+/* ---- 暗色主题 ---- */
+[data-theme="dark"] {
+  --ink-900: #FAFAFA;
+  --ink-800: #E4E4E7;
+  --ink-700: #D4D4D8;
+  --ink-600: #A1A1AA;
+  --ink-500: #71717A;
+  --ink-400: #52525B;
+  --ink-300: #3F3F46;
+  --ink-200: #27272A;
+  --ink-100: #18181B;
+  --ink-50:  #0A0A0B;
+
+  --accent: #818CF8;
+  --accent-press: #6366F1;
+  --accent-tint: #1E1B4B;
+
+  --danger: #F87171;
+  --danger-tint: #1C1010;
+  --success: #4ADE80;
+
+  --md-color: #60A5FA;
+  --html-color: #FB923C;
+
+  --bg: #09090B;
+  --surface: #18181B;
+  --border: #27272A;
+  --border-strong: #3F3F46;
+
+  --shadow: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* 暗色下代码块背景保持深色 */
+[data-theme="dark"] .md-body pre {
+  background: #0A0A0B;
+}
+
+/* 暗色下 scrollbar */
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--ink-300);
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-400);
+}
+
+/* 暗色下 body */
+[data-theme="dark"] body {
+  background: var(--bg);
+  color: var(--ink-900);
+}
