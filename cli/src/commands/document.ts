@@ -107,14 +107,18 @@ export function registerDocumentCommands(program: Command): void {
         }
 
         const colId = options.collection;
-        const { data } = await client.post<DocumentItem[]>(
+        const { data } = await client.post<{ created: DocumentItem[]; duplicated: string[] }>(
           `/api/collections/${colId}/documents`,
           form,
           { headers: form.getHeaders() }
         );
 
-        spinner.succeed(`上传完成: ${data.length} 个文档`);
-        const rows = data.map((d) => [
+        const { created, duplicated } = data;
+	spinner.succeed(`上传完成: ${created.length} 个文档`);
+	if (duplicated.length > 0) {
+	  printWarning(`以下文件因内容重复已跳过: ${duplicated.join(', ')}`);
+	}
+        const rows = created.map((d) => [
           String(d.id),
           truncate(d.title, 30),
           d.filename,
