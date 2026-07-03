@@ -239,7 +239,7 @@ export default function CollectionDetail() {
     <div style={{ display: 'flex', height: 'calc(100vh - 52px)', overflow: 'hidden' }}>
       {/* 左栏 */}
       <aside style={{ width: 256, borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ padding: 14, borderBottom: '1px solid var(--ink-50)' }}>
+        <div style={{ padding: 14, borderBottom: '1px solid var(--subtle-border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
             <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/')} size="small" />
             <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>返回</span>
@@ -247,7 +247,7 @@ export default function CollectionDetail() {
           {collection && (
             <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
               <div style={{
-                width: 30, height: 30, borderRadius: 6, background: 'var(--ink-50)',
+                width: 30, height: 30, borderRadius: 6, background: 'var(--subtle-bg)',
                 border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
                 justifyContent: 'center', color: 'var(--ink-500)', fontSize: 14,
               }}>
@@ -327,7 +327,7 @@ export default function CollectionDetail() {
               {/* 文档顶栏 */}
               <div style={{
                 position: 'sticky', top: 0, zIndex: 10, background: 'var(--surface)',
-                borderBottom: '1px solid var(--ink-50)', padding: '10px 32px',
+                borderBottom: '1px solid var(--subtle-border)', padding: '10px 32px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <Space wrap>
@@ -354,7 +354,7 @@ export default function CollectionDetail() {
               </div>
 
               {selected.note && (
-                <div style={{ padding: '8px 32px', background: 'var(--ink-50)', borderBottom: '1px solid var(--ink-100)', fontSize: 12, color: 'var(--ink-500)' }}>
+                <div style={{ padding: '8px 32px', background: 'var(--subtle-bg)', borderBottom: '1px solid var(--subtle-border)', fontSize: 12, color: 'var(--ink-500)' }}>
                   📝 {selected.note}
                 </div>
               )}
@@ -369,7 +369,7 @@ export default function CollectionDetail() {
             </div>
 
             {isMd && tocItems.length > 0 && (
-              <aside style={{ width: 208, flexShrink: 0, borderLeft: '1px solid var(--ink-50)' }}>
+              <aside style={{ width: 208, flexShrink: 0, borderLeft: '1px solid var(--subtle-border)' }}>
                 <DocToc items={tocItems} />
               </aside>
             )}
@@ -467,7 +467,7 @@ export default function CollectionDetail() {
                     <div className="body">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                         <div style={{
-                          width: 32, height: 32, borderRadius: 6, background: 'var(--ink-50)',
+                          width: 32, height: 32, borderRadius: 6, background: 'var(--subtle-bg)',
                           border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
                           justifyContent: 'center', color: 'var(--ink-500)', fontSize: 15,
                         }}>

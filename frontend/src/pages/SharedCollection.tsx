@@ -71,10 +71,10 @@ export default function SharedCollection() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       {/* 左栏 */}
       <aside style={{ width: 256, borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ padding: 14, borderBottom: '1px solid var(--ink-50)' }}>
+        <div style={{ padding: 14, borderBottom: '1px solid var(--subtle-border)' }}>
           <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
             <div style={{
-              width: 30, height: 30, borderRadius: 6, background: 'var(--ink-50)',
+              width: 30, height: 30, borderRadius: 6, background: 'var(--subtle-bg)',
               border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
               justifyContent: 'center', color: 'var(--ink-500)', fontSize: 14,
             }}>
@@ -98,12 +98,12 @@ export default function SharedCollection() {
               className={`doc-item ${selected?.id === doc.id ? 'active' : ''}`}
               onClick={() => setSelected(doc)}
             >
-              <span className="doc-icon" style={{ color: doc.ext === '.md' ? 'var(--color-md)' : 'var(--color-html)' }}>
+              <span className="doc-icon" style={{ color: doc.ext === '.md' ? 'var(--md-color)' : 'var(--html-color)' }}>
                 {doc.ext === '.md' ? <FileTextOutlined /> : <Html5Outlined />}
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="doc-name">{doc.title}</div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: 'var(--ink-400)', marginTop: 2 }}>
                   {formatSize(doc.size)}
                 </div>
               </div>
@@ -123,7 +123,7 @@ export default function SharedCollection() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 position: 'sticky', top: 0, zIndex: 10, background: 'var(--surface)',
-                borderBottom: '1px solid var(--ink-50)', padding: '10px 32px',
+                borderBottom: '1px solid var(--subtle-border)', padding: '10px 32px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <Space>

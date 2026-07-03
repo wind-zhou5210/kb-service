@@ -100,19 +100,19 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess }: 
         style={{ marginBottom: 16 }}
       >
         <p className="ant-upload-drag-icon">
-          <InboxOutlined style={{ color: 'var(--color-primary)', fontSize: 40 }} />
+          <InboxOutlined style={{ color: 'var(--accent)', fontSize: 40 }} />
         </p>
-        <p style={{ fontSize: 14, color: 'var(--color-text)', fontWeight: 500 }}>
+        <p style={{ fontSize: 14, color: 'var(--ink-800)', fontWeight: 500 }}>
           点击或拖拽文件到此区域
         </p>
-        <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+        <p style={{ fontSize: 12, color: 'var(--ink-400)' }}>
           支持 .md / .html / .htm 格式，可多选
         </p>
       </Dragger>
 
       {/* 已选文件列表 */}
       {files.length > 0 && (
-        <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid var(--color-border-light)', borderRadius: 8 }}>
+        <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
           {files.map((f) => {
             const isMd = f.name.endsWith('.md')
             return (
@@ -123,16 +123,16 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess }: 
                   alignItems: 'center',
                   gap: 10,
                   padding: '8px 12px',
-                  borderBottom: '1px solid var(--color-border-light)',
+                  borderBottom: '1px solid var(--border)',
                 }}
               >
-                <span style={{ color: isMd ? 'var(--color-md)' : 'var(--color-html)', fontSize: 16 }}>
+                <span style={{ color: isMd ? 'var(--md-color)' : 'var(--html-color)', fontSize: 16 }}>
                   {isMd ? <FileTextOutlined /> : <Html5Outlined />}
                 </span>
-                <span style={{ flex: 1, fontSize: 13, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ flex: 1, fontSize: 13, color: 'var(--ink-800)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {f.name}
                 </span>
-                <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+                <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>
                   {formatSize(f.size || 0)}
                 </span>
                 <Button

@@ -59,7 +59,7 @@ export default function DocToc({ items }: Props) {
       ))}
       <div
         className="toc-item"
-        style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--ink-50)' }}
+        style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--subtle-border)' }}
         onClick={() => {
           const container = document.querySelector('main')
           if (container) container.scrollTo({ top: 0, behavior: 'smooth' })

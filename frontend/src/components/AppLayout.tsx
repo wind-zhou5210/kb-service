@@ -12,10 +12,8 @@ interface Props {
 export default function AppLayout({ children }: Props) {
   const navigate = useNavigate()
   const logout = useAuth((s) => s.logout)
-  const { theme: currentTheme, toggleTheme } = useTheme((s) => ({
-    theme: s.theme,
-    toggleTheme: s.toggleTheme,
-  }))
+  const currentTheme = useTheme((s) => s.theme)
+  const toggleTheme = useTheme((s) => s.toggleTheme)
   const [q, setQ] = useState('')
 
   const goSearch = () => {
@@ -55,9 +53,10 @@ export default function AppLayout({ children }: Props) {
           <div
             style={{
               width: 28, height: 28, borderRadius: 6,
-              background: 'var(--ink-100)', display: 'flex',
+              background: 'var(--subtle-bg)', display: 'flex',
               alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--ink-600)',
+              border: '1px solid var(--border)',
             }}
           >
             A
