@@ -48,7 +48,7 @@ export default function CollectionCard({ collection, docCount = 0, onClick, onEd
               width: 32,
               height: 32,
               borderRadius: 6,
-              background: 'var(--ink-50)',
+              background: 'var(--subtle-bg)',
               border: '1px solid var(--border)',
               display: 'flex',
               alignItems: 'center',

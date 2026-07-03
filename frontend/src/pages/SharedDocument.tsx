@@ -50,7 +50,7 @@ export default function SharedDocument() {
     <div style={{ minHeight: '100vh', background: 'var(--surface)' }}>
       <div style={{
         position: 'sticky', top: 0, zIndex: 10, background: 'var(--surface)',
-        borderBottom: '1px solid var(--ink-50)', padding: '12px 32px',
+        borderBottom: '1px solid var(--subtle-border)', padding: '12px 32px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <Space>

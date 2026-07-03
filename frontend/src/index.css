@@ -31,6 +31,12 @@
   --border: #E4E4E7;
   --border-strong: #D4D4D8;
 
+  /* ---- 品牌区/Logo：始终深色 ---- */
+  --brand-bg: #0A0A0B;
+  /* ---- 次级表面：hover/note 背景与分隔线 ---- */
+  --subtle-bg: #F4F4F5;
+  --subtle-border: #E4E4E7;
+
   --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, monospace;
   --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 
@@ -52,6 +58,7 @@ body {
   color: var(--ink-900);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -87,7 +94,7 @@ body {
 .app-header .logo-mark {
   width: 24px; height: 24px;
   border-radius: 5px;
-  background: var(--ink-900);
+  background: var(--brand-bg);
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 13px;
 }
@@ -119,7 +126,7 @@ body {
 }
 .col-card .meta {
   margin-top: 14px; padding-top: 12px;
-  border-top: 1px solid var(--ink-50);
+  border-top: 1px solid var(--subtle-border);
   display: flex; align-items: center; justify-content: space-between;
   font-family: var(--mono); font-size: 11px; color: var(--ink-400);
 }
@@ -131,7 +138,7 @@ body {
   cursor: pointer; transition: background 0.12s var(--ease);
   position: relative;
 }
-.doc-item:hover { background: var(--ink-50); }
+.doc-item:hover { background: var(--subtle-bg); }
 .doc-item.active { background: var(--accent-tint); }
 .doc-item.active .doc-name { color: var(--accent); font-weight: 500; }
 .doc-item.active::before {
@@ -179,7 +186,7 @@ body {
   overflow: auto; font-size: 13px; line-height: 1.6; font-family: var(--mono);
 }
 .md-body code { font-family: var(--mono); font-size: 0.875em; }
-.md-body :not(pre) > code { background: var(--ink-100); color: var(--ink-800); padding: 1px 5px; border-radius: 3px; }
+.md-body :not(pre) > code { background: var(--subtle-bg); color: var(--ink-800); padding: 1px 5px; border-radius: 3px; }
 .md-body table { border-collapse: collapse; margin: 16px 0; width: 100%; font-size: 14px; }
 .md-body th, .md-body td { border-bottom: 1px solid var(--border); padding: 8px 12px; text-align: left; }
 .md-body th { font-weight: 600; color: var(--ink-900); border-bottom: 1px solid var(--ink-400); }
@@ -196,7 +203,7 @@ body {
 }
 .doc-toc .toc-item {
   display: block; padding: 4px 16px; font-size: 12px; color: var(--ink-500);
-  cursor: pointer; border-left: 1px solid var(--ink-100);
+  cursor: pointer; border-left: 1px solid var(--subtle-border);
   transition: color 0.12s, border-color 0.12s; line-height: 1.5;
 }
 .doc-toc .toc-item:hover { color: var(--ink-900); }
@@ -231,7 +238,7 @@ body {
 /* 左侧品牌区 */
 .login-brand {
   flex: 0 0 42%;
-  background: var(--ink-900);
+  background: var(--brand-bg);
   color: #fff;
   display: flex;
   flex-direction: column;
@@ -361,3 +368,74 @@ body {
 
 /* ---- 搜索结果项 ---- */
 .search-result-item:hover { border-color: var(--ink-400) !important; }
+
+/* ---- 暗色主题 ---- */
+[data-theme="dark"] {
+  --ink-900: #FAFAFA;
+  --ink-800: #E4E4E7;
+  --ink-700: #D4D4D8;
+  --ink-600: #A1A1AA;
+  --ink-500: #71717A;
+  --ink-400: #52525B;
+  --ink-300: #3F3F46;
+  --ink-200: #27272A;
+  --ink-100: #18181B;
+  --ink-50:  #0A0A0B;
+
+  --accent: #818CF8;
+  --accent-press: #6366F1;
+  --accent-tint: #1E1B4B;
+
+  --danger: #F87171;
+  --danger-tint: #1C1010;
+  --success: #4ADE80;
+
+  --md-color: #60A5FA;
+  --html-color: #FB923C;
+
+  --bg: #09090B;
+  --surface: #18181B;
+  --border: #27272A;
+  --border-strong: #3F3F46;
+
+  --brand-bg: #0A0A0B;
+  --subtle-bg: #232327;
+  --subtle-border: #27272A;
+
+  --shadow: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* 暗色下 logo-mark 用强调色提升可见度 */
+[data-theme="dark"] .app-header .logo-mark {
+  background: var(--accent);
+}
+
+/* 暗色下代码块背景保持深色 */
+[data-theme="dark"] .md-body pre {
+  background: #0A0A0B;
+}
+
+/* 暗色下内联代码加细边框增强辨识 */
+[data-theme="dark"] .md-body :not(pre) > code {
+  border: 1px solid var(--border);
+}
+
+/* 暗色下图片边框增强 */
+[data-theme="dark"] .md-body img {
+  border-color: var(--border-strong);
+}
+
+/* 暗色下 scrollbar */
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--ink-300);
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-400);
+}
+
+/* 暗色下 body */
+[data-theme="dark"] body {
+  background: var(--bg);
+  color: var(--ink-900);
+}

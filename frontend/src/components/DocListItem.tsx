@@ -17,13 +17,13 @@ export default function DocListItem({ doc, active, onClick, dragHandleProps, onS
   const tags = doc.tags?.split(',').map(t => t.trim()).filter(Boolean) ?? []
   return (
     <div className={`doc-item ${active ? 'active' : ''}`} onClick={onClick} {...dragHandleProps}>
-      <span className="doc-icon" style={{ color: isMd ? 'var(--color-md)' : 'var(--color-html)' }}>
+      <span className="doc-icon" style={{ color: isMd ? 'var(--md-color)' : 'var(--html-color)' }}>
         {isMd ? <FileTextOutlined /> : <Html5Outlined />}
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="doc-name">{doc.title}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-          <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+          <span style={{ fontSize: 11, color: 'var(--ink-400)' }}>
             {formatSize(doc.size)} · {relativeTime(doc.created_at)}
           </span>
           {tags.length > 0 && (
