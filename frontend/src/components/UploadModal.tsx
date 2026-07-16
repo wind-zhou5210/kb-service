@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Modal, Upload, message, Button, List } from 'antd'
+import { Modal, Upload, message, Button, List, Checkbox } from 'antd'
 import { InboxOutlined, FileTextOutlined, Html5Outlined, DeleteOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import { api } from '../api/client'
@@ -18,6 +18,7 @@ const ACCEPT = '.md,.html,.htm'
 export default function UploadModal({ collectionId, open, onClose, onSuccess }: Props) {
   const [files, setFiles] = useState<UploadFile[]>([])
   const [uploading, setUploading] = useState(false)
+  const [overwriteMode, setOverwriteMode] = useState(false)
 
   const handleUpload = async () => {
     const valid = files.filter((f) => f.originFileObj)
@@ -30,19 +31,24 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess }: 
       const result = await api.uploadDocuments(
         collectionId,
         valid.map((f) => f.originFileObj as File),
+        overwriteMode ? 'overwrite' : undefined,
       )
-      const createdCount = result.created?.length ?? valid.length
+      const createdCount = result.created?.length ?? 0
+      const updatedCount = (result as any).updated?.length ?? 0
       const duplicatedCount = result.duplicated?.length ?? 0
 
-      if (duplicatedCount > 0 && createdCount > 0) {
+      if (duplicatedCount > 0 && (createdCount > 0 || updatedCount > 0)) {
         message.success(
-          `成功上传 ${createdCount} 个文件，${duplicatedCount} 个文件因内容重复已跳过`,
+          `成功上传 ${createdCount} 个文件，覆盖 ${updatedCount} 个文件，${duplicatedCount} 个文件因内容重复已跳过`,
           4,
         )
-      } else if (duplicatedCount > 0 && createdCount === 0) {
+      } else if (duplicatedCount > 0 && createdCount === 0 && updatedCount === 0) {
         message.warning(`上传失败: ${result.duplicated?.join(', ')} 与集合中已有文件内容重复`)
       } else {
-        message.success(`成功上传 ${createdCount} 个文件`)
+        const parts = []
+        if (createdCount) parts.push(`成功上传 ${createdCount} 个文件`)
+        if (updatedCount) parts.push(`覆盖更新 ${updatedCount} 个文件`)
+        message.success(parts.join('，') || '上传完成')
       }
       setFiles([])
       onClose()
@@ -81,6 +87,15 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess }: 
         </Button>,
       ]}
     >
+      <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Checkbox checked={overwriteMode} onChange={(e) => setOverwriteMode(e.target.checked)}>
+          替换同名文档
+        </Checkbox>
+        <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+          （选中后同文件名的文档将被覆盖，旧版本可追溯）
+        </span>
+      </div>
+
       <Dragger
         accept={ACCEPT}
         multiple
