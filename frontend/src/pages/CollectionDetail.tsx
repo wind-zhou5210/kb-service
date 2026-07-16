@@ -86,13 +86,14 @@ export default function CollectionDetail() {
     return () => window.removeEventListener('keydown', onKey)
   }, [fullscreen])
 
-  const loadDocs = useCallback(async () => {
+  const loadDocs = useCallback(async (): Promise<DocumentItem[]> => {
     setLoading(true)
     try {
       const list = await api.listDocuments(colId)
       setDocs(list)
       const cols = await api.listCollections()
       setCollection(cols.find((c) => c.id === colId) ?? null)
+      return list
     } finally { setLoading(false) }
   }, [colId])
 
@@ -406,7 +407,13 @@ export default function CollectionDetail() {
         collectionId={colId}
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
-        onSuccess={loadDocs}
+        onSuccess={async () => {
+          const list = await loadDocs()
+          if (selected) {
+            const updated = list.find(d => d.id === selected.id)
+            if (updated) viewDoc(updated)
+          }
+        }}
         existingFilenames={docs.map(d => d.filename)}
       />
       {versionHistoryDoc && (
@@ -415,7 +422,13 @@ export default function CollectionDetail() {
           currentVersion={versionHistoryDoc.current_version ?? 1}
           open={!!versionHistoryDoc}
           onClose={() => setVersionHistoryDoc(null)}
-          onRestore={() => { loadDocs(); if (selected?.id === versionHistoryDoc.id) viewDoc(versionHistoryDoc) }}
+          onRestore={async () => {
+            const list = await loadDocs()
+            if (selected) {
+              const updated = list.find(d => d.id === selected.id)
+              if (updated) viewDoc(updated)
+            }
+          }}
         />
       )}
       <Modal title="编辑详情" open={!!editing} onOk={handleEditSave} onCancel={() => setEditing(null)} okText="保存" cancelText="取消" width={460}>
