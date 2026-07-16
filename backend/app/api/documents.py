@@ -371,19 +371,173 @@ async def delete_document(
     # 清理 FTS 索引
     await session.execute(text("DELETE FROM fts_index WHERE document_id = :doc_id"), {"doc_id": doc_id})
 
+    # 查询所有版本（含当前内容 sha1）
+    versions = (await session.execute(
+        select(DocumentVersion).where(DocumentVersion.document_id == doc_id)
+    )).scalars().all()
+
+    # 收集所有 blob sha1，去重后统一释放 ref_count
+    all_sha1s = {sha1}  # 当前内容
+    for v in versions:
+        all_sha1s.add(v.content_sha1)
+
+    # 删除所有版本
+    for v in versions:
+        await session.delete(v)
+
+    # 删除文档
     await session.delete(doc)
 
-    # 引用计数 -1，归零删物理文件
-    blob = await session.get(FileBlob, sha1)
-    if blob:
-        blob.ref_count -= 1
-        if blob.ref_count <= 0:
-            await session.delete(blob)
-            await storage.delete(sha1)
+    # 逐个释放 ref_count 并清理物理文件
+    for s in all_sha1s:
+        blob = await session.get(FileBlob, s)
+        if blob:
+            count = 1 if s == sha1 else 0
+            count += sum(1 for v in versions if v.content_sha1 == s)
+            blob.ref_count -= count
+            if blob.ref_count <= 0:
+                await session.delete(blob)
+                await storage.delete(s)
 
     col = await session.get(Collection, col_id)
     if col:
         col.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+
+
+@router.get("/documents/{doc_id}/versions")
+async def list_versions(
+    doc_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
+    stmt = select(DocumentVersion).where(
+        DocumentVersion.document_id == doc_id
+    ).order_by(DocumentVersion.version.desc())
+    return (await session.execute(stmt)).scalars().all()
+
+
+@router.get("/documents/{doc_id}/versions/{version}")
+async def get_version(
+    doc_id: int,
+    version: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    ver = (await session.execute(
+        select(DocumentVersion).where(
+            DocumentVersion.document_id == doc_id,
+            DocumentVersion.version == version,
+        )
+    )).scalars().first()
+    if not ver:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "版本不存在")
+    data = await storage.read(ver.content_sha1)
+    return {
+        "version": ver,
+        "content": data.decode("utf-8", errors="replace"),
+    }
+
+
+@router.post("/documents/{doc_id}/versions/{version}/restore")
+async def restore_version(
+    doc_id: int,
+    version: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: CurrentUser,
+):
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
+
+    target = (await session.execute(
+        select(DocumentVersion).where(
+            DocumentVersion.document_id == doc_id,
+            DocumentVersion.version == version,
+        )
+    )).scalars().first()
+    if not target:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "版本不存在")
+
+    # 先保存当前内容为新版本
+    max_ver = (await session.execute(
+        select(func.coalesce(func.max(DocumentVersion.version), 0)).where(
+            DocumentVersion.document_id == doc_id
+        )
+    )).scalar()
+    new_ver = DocumentVersion(
+        document_id=doc_id,
+        version=max_ver + 1,
+        content_sha1=doc.content_sha1,
+        filename=doc.filename,
+        ext=doc.ext,
+        size=doc.size,
+    )
+    session.add(new_ver)
+
+    # 旧 blob ref_count++（新版本引用它）
+    old_blob = await session.get(FileBlob, doc.content_sha1)
+    if old_blob:
+        old_blob.ref_count += 1
+
+    # 目标版本 blob ref_count++（Document 引用它）
+    target_blob = await session.get(FileBlob, target.content_sha1)
+    if target_blob:
+        target_blob.ref_count += 1
+
+    # 更新 Document
+    doc.content_sha1 = target.content_sha1
+    doc.size = target.size
+    doc.ext = target.ext
+    doc.current_version += 1
+    doc.updated_at = datetime.now(timezone.utc)
+    session.add(doc)
+
+    # 更新 FTS 索引
+    data = await storage.read(target.content_sha1)
+    body_text = _extract_text(data, target.ext)
+    await session.execute(
+        text("DELETE FROM fts_index WHERE document_id = :doc_id"),
+        {"doc_id": doc_id},
+    )
+    col = await session.get(Collection, doc.collection_id)
+    col_name = col.name if col else ""
+    await session.execute(
+        text("INSERT INTO fts_index (document_id, title, collection_name, body_text) "
+             "VALUES (:doc_id, :title, :col_name, :body)"),
+        {"doc_id": doc_id, "title": doc.title, "col_name": col_name, "body": body_text},
+    )
+
+    await session.commit()
+    await session.refresh(doc)
+    return doc
+
+
+@router.delete("/documents/{doc_id}/versions/{version}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_version(
+    doc_id: int,
+    version: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: CurrentUser,
+):
+    ver = (await session.execute(
+        select(DocumentVersion).where(
+            DocumentVersion.document_id == doc_id,
+            DocumentVersion.version == version,
+        )
+    )).scalars().first()
+    if not ver:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "版本不存在")
+
+    blob = await session.get(FileBlob, ver.content_sha1)
+    if blob:
+        blob.ref_count -= 1
+        if blob.ref_count <= 0:
+            await session.delete(blob)
+            await storage.delete(ver.content_sha1)
+
+    await session.delete(ver)
     await session.commit()
 
 
