@@ -4,7 +4,7 @@ import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip, Se
 import {
   ArrowLeftOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined,
   MoreOutlined, SearchOutlined, FileTextOutlined, Html5Outlined, FolderOutlined, EditOutlined,
-  FullscreenOutlined, FullscreenExitOutlined, StopOutlined, SwapOutlined,
+  FullscreenOutlined, FullscreenExitOutlined, StopOutlined, SwapOutlined, HistoryOutlined,
 } from '@ant-design/icons'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -18,6 +18,7 @@ import HtmlSandbox from '../components/HtmlSandbox'
 import DocListItem from '../components/DocListItem'
 import DocToc, { type TocItem } from '../components/DocToc'
 import UploadModal from '../components/UploadModal'
+import VersionHistoryModal from '../components/VersionHistoryModal'
 import EmptyState from '../components/EmptyState'
 import { formatSize, relativeTime } from '../utils/format'
 import { copyToClipboard } from '../utils/clipboard'
@@ -72,6 +73,7 @@ export default function CollectionDetail() {
   const [moveModalOpen, setMoveModalOpen] = useState(false)
   const [moveTarget, setMoveTarget] = useState<DocumentItem | null>(null)
   const [collections, setCollections] = useState<Collection[]>([])
+  const [versionHistoryDoc, setVersionHistoryDoc] = useState<DocumentItem | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -226,6 +228,7 @@ export default function CollectionDetail() {
       { key: 'edit', label: '编辑详情', icon: <EditOutlined />, onClick: () => openEdit(doc) },
       { key: 'download', label: '下载', icon: <DownloadOutlined />, onClick: () => window.open(`/api/documents/${doc.id}/download`) },
       { key: 'move', label: '移动到...', icon: <SwapOutlined />, onClick: () => openMoveModal(doc) },
+      { key: 'versions', label: '版本历史', icon: <HistoryOutlined />, onClick: () => setVersionHistoryDoc(doc) },
       ...(doc.share_token ? [{ key: 'revokeShare', label: '取消分享', icon: <StopOutlined />, onClick: async () => { await api.revokeDocShare(doc.id); message.success('已取消分享'); loadDocs() } }] : []),
       { type: 'divider' as const },
       { key: 'delete', label: '删除', icon: <DeleteOutlined />, danger: true, onClick: () => handleDelete(doc) },
@@ -400,6 +403,15 @@ export default function CollectionDetail() {
       )}
 
       <UploadModal collectionId={colId} open={uploadOpen} onClose={() => setUploadOpen(false)} onSuccess={loadDocs} />
+      {versionHistoryDoc && (
+        <VersionHistoryModal
+          docId={versionHistoryDoc.id}
+          currentVersion={versionHistoryDoc.current_version ?? 1}
+          open={!!versionHistoryDoc}
+          onClose={() => setVersionHistoryDoc(null)}
+          onRestore={() => { loadDocs(); if (selected?.id === versionHistoryDoc.id) viewDoc(versionHistoryDoc) }}
+        />
+      )}
       <Modal title="编辑详情" open={!!editing} onOk={handleEditSave} onCancel={() => setEditing(null)} okText="保存" cancelText="取消" width={460}>
         <div style={{ paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
