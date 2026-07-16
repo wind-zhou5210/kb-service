@@ -37,6 +37,20 @@ class Document(SQLModel, table=True):
     tags: str | None = None                # JSON 字符串，MVP 简化为逗号分隔
     note: str | None = None
     sort_order: int = 0
+    current_version: int = 1
     share_token: str | None = Field(default=None, index=True)  # 单文档只读分享令牌
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class DocumentVersion(SQLModel, table=True):
+    """文档版本快照。每次覆盖更新时创建，记录历史内容。"""
+    id: int | None = Field(default=None, primary_key=True)
+    document_id: int = Field(foreign_key="document.id", index=True)
+    version: int
+    content_sha1: str = Field(foreign_key="fileblob.sha1")
+    filename: str
+    ext: str
+    size: int
+    change_note: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
