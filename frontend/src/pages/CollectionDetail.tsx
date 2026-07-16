@@ -402,7 +402,13 @@ export default function CollectionDetail() {
         </div>
       )}
 
-      <UploadModal collectionId={colId} open={uploadOpen} onClose={() => setUploadOpen(false)} onSuccess={loadDocs} />
+      <UploadModal
+        collectionId={colId}
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onSuccess={loadDocs}
+        existingFilenames={docs.map(d => d.filename)}
+      />
       {versionHistoryDoc && (
         <VersionHistoryModal
           docId={versionHistoryDoc.id}

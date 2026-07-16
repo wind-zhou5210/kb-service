@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { Modal, Upload, message, Button, List, Checkbox } from 'antd'
-import { InboxOutlined, FileTextOutlined, Html5Outlined, DeleteOutlined } from '@ant-design/icons'
+import { useState, useEffect, useMemo } from 'react'
+import { Modal, Upload, message, Button, List, Checkbox, Tag } from 'antd'
+import { InboxOutlined, FileTextOutlined, Html5Outlined, DeleteOutlined, WarningOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import { api } from '../api/client'
 import { formatSize } from '../utils/format'
@@ -10,15 +10,28 @@ interface Props {
   open: boolean
   onClose: () => void
   onSuccess: () => void
+  existingFilenames?: string[]
 }
 
 const { Dragger } = Upload
 const ACCEPT = '.md,.html,.htm'
 
-export default function UploadModal({ collectionId, open, onClose, onSuccess }: Props) {
+export default function UploadModal({ collectionId, open, onClose, onSuccess, existingFilenames = [] }: Props) {
   const [files, setFiles] = useState<UploadFile[]>([])
   const [uploading, setUploading] = useState(false)
   const [overwriteMode, setOverwriteMode] = useState(false)
+
+  // 检测已选文件中是否有与集合中现有文档同名的
+  const conflictingFiles = useMemo(() => {
+    return files.filter((f) => existingFilenames.includes(f.name))
+  }, [files, existingFilenames])
+
+  // 当检测到同名文件时，自动启用覆盖模式
+  useEffect(() => {
+    if (conflictingFiles.length > 0 && !overwriteMode) {
+      setOverwriteMode(true)
+    }
+  }, [conflictingFiles, overwriteMode])
 
   const handleUpload = async () => {
     const valid = files.filter((f) => f.originFileObj)
@@ -87,6 +100,19 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess }: 
         </Button>,
       ]}
     >
+      {conflictingFiles.length > 0 && (
+        <div style={{
+          marginBottom: 12, padding: '6px 12px', borderRadius: 6,
+          background: '#fff7e6', border: '1px solid #ffd591', fontSize: 12, color: '#d46b08',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <WarningOutlined />
+          <span>
+            检测到 {conflictingFiles.map(f => f.name).join('、')} 已存在，将自动启用替换模式覆盖旧文档
+          </span>
+        </div>
+      )}
+
       <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
         <Checkbox checked={overwriteMode} onChange={(e) => setOverwriteMode(e.target.checked)}>
           替换同名文档
