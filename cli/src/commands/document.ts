@@ -3,7 +3,7 @@ import { getClient } from '../client';
 import { printTable, printError, printWarning } from '../utils/table';
 import { formatSize, formatTime, truncate } from '../utils/format';
 import { askConfirm } from '../utils/prompt';
-import type { DocumentItem, SearchResult } from '../types';
+import type { DocumentItem, DocumentVersion, SearchResult } from '../types';
 import ora from 'ora';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -76,6 +76,7 @@ export function registerDocumentCommands(program: Command): void {
     .description('上传 .md / .html 文件到指定集合')
     .argument('<files...>', '文件路径，支持通配符（如 docs/*.md）')
     .requiredOption('-c, --collection <id>', '目标集合 ID')
+    .option('-o, --overwrite', '替换同名文件（保留文档 ID 和元数据，旧版本可追溯）')
     .action(async (files: string[], options) => {
       const resolved = resolveFiles(files);
       if (resolved.length === 0) {
@@ -107,24 +108,35 @@ export function registerDocumentCommands(program: Command): void {
         }
 
         const colId = options.collection;
-        const { data } = await client.post<{ created: DocumentItem[]; duplicated: string[] }>(
+        const params: Record<string, any> = {};
+        if (options.overwrite) params.mode = 'overwrite';
+
+        const { data } = await client.post<{ created: DocumentItem[]; updated: DocumentItem[]; duplicated: string[] }>(
           `/api/collections/${colId}/documents`,
           form,
-          { headers: form.getHeaders() }
+          { headers: form.getHeaders(), params }
         );
 
-        const { created, duplicated } = data;
-	spinner.succeed(`上传完成: ${created.length} 个文档`);
-	if (duplicated.length > 0) {
-	  printWarning(`以下文件因内容重复已跳过: ${duplicated.join(', ')}`);
-	}
-        const rows = created.map((d) => [
-          String(d.id),
-          truncate(d.title, 30),
-          d.filename,
-          formatSize(d.size),
-        ]);
-        printTable(['ID', '标题', '文件名', '大小'], rows);
+        const { created, updated, duplicated } = data;
+        spinner.succeed(`上传完成: ${created?.length || 0} 个文档, ${updated?.length || 0} 个文件已覆盖`);
+        if (duplicated?.length > 0) {
+          printWarning(`以下文件因内容重复已跳过: ${duplicated.join(', ')}`);
+        }
+        if (created?.length > 0) {
+          const rows = created.map((d) => [
+            String(d.id),
+            truncate(d.title, 30),
+            d.filename,
+            formatSize(d.size),
+          ]);
+          printTable(['ID', '标题', '文件名', '大小'], rows);
+        }
+        if (updated?.length > 0) {
+          const upRows = updated.map((d: any) => [
+            String(d.id), truncate(d.title, 30), d.filename, formatSize(d.size), `v${d.current_version || ''}`
+          ]);
+          printTable(['ID', '标题', '文件名', '大小', '版本'], upRows);
+        }
       } catch (err: any) {
         spinner.fail(err.message);
         process.exit(1);
@@ -327,6 +339,87 @@ export function registerDocumentCommands(program: Command): void {
         }
       } catch (err: any) {
         printError(err.message);
+        process.exit(1);
+      }
+    });
+
+  // ------ version:list ------
+  program
+    .command('version:list')
+    .description('查看文档版本历史')
+    .argument('<docId>', '文档 ID')
+    .option('--json', 'JSON 格式输出')
+    .action(async (docId, options) => {
+      const spinner = ora('加载版本列表...').start();
+      try {
+        const client = getClient();
+        const { data } = await client.get<DocumentVersion[]>(`/api/documents/${docId}/versions`);
+        spinner.stop();
+        if (!data.length) {
+          console.log('暂无历史版本');
+          return;
+        }
+        const rows = data.map((v) => [
+          String(v.version),
+          formatSize(v.size),
+          formatTime(v.created_at),
+        ]);
+        printTable(['版本', '大小', '创建时间'], rows, { json: options.json });
+      } catch (err: any) {
+        spinner.fail(err.message);
+        process.exit(1);
+      }
+    });
+
+  // ------ version:view ------
+  program
+    .command('version:view')
+    .description('查看指定版本的内容')
+    .argument('<docId>', '文档 ID')
+    .argument('<version>', '版本号')
+    .option('-o, --output <path>', '保存到文件')
+    .action(async (docId, version, options) => {
+      const spinner = ora('加载版本内容...').start();
+      try {
+        const client = getClient();
+        const { data } = await client.get<{ version: any; content: string }>(
+          `/api/documents/${docId}/versions/${version}`
+        );
+        spinner.stop();
+        if (options.output) {
+          fs.writeFileSync(options.output, data.content);
+          console.log(`已保存到: ${options.output}`);
+        } else {
+          console.log(data.content);
+        }
+      } catch (err: any) {
+        spinner.fail(err.message);
+        process.exit(1);
+      }
+    });
+
+  // ------ version:restore ------
+  program
+    .command('version:restore')
+    .description('恢复文档到指定版本')
+    .argument('<docId>', '文档 ID')
+    .argument('<version>', '版本号')
+    .option('-y, --yes', '跳过确认')
+    .action(async (docId, version, options) => {
+      if (!options.yes) {
+        const ok = await askConfirm(`确认恢复文档 ${docId} 到版本 ${version}？当前内容将保存为新版本`);
+        if (!ok) {
+          console.log('已取消');
+          return;
+        }
+      }
+      const spinner = ora('恢复中...').start();
+      try {
+        const client = getClient();
+        await client.post(`/api/documents/${docId}/versions/${version}/restore`);
+        spinner.succeed(`已恢复到版本 ${version}`);
+      } catch (err: any) {
+        spinner.fail(err.message);
         process.exit(1);
       }
     });
