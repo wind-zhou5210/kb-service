@@ -37,10 +37,6 @@ async def init_db() -> None:
         # 迁移：Document 表加 current_version 列
         if "current_version" not in col_names:
             await conn.execute(text("ALTER TABLE document ADD COLUMN current_version INTEGER NOT NULL DEFAULT 1"))
-        # 迁移：DocumentVersion 表
-        import sqlalchemy as sa
-        if not await conn.run_sync(lambda c: sa.inspect(c).has_table("documentversion")):
-            await conn.run_sync(SQLModel.metadata.create_all)
         # 开启 WAL，提升 SQLite 并发读性能
         await conn.execute(__import__("sqlalchemy").text("PRAGMA journal_mode=WAL"))
         # FTS5 全文索引虚表

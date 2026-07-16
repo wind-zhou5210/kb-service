@@ -3,7 +3,7 @@
 关系：Collection 1—N Document N—1 FileBlob（多文档共享同一物理文件，内容寻址去重）。
 """
 from datetime import datetime, timezone
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, SQLModel, UniqueConstraint
 
 
 class Collection(SQLModel, table=True):
@@ -45,6 +45,9 @@ class Document(SQLModel, table=True):
 
 class DocumentVersion(SQLModel, table=True):
     """文档版本快照。每次覆盖更新时创建，记录历史内容。"""
+    __table_args__ = (
+        UniqueConstraint("document_id", "version", name="uq_doc_version"),
+    )
     id: int | None = Field(default=None, primary_key=True)
     document_id: int = Field(foreign_key="document.id", index=True)
     version: int
