@@ -34,6 +34,9 @@ async def init_db() -> None:
         col_names = [c[1] for c in cols]
         if "share_token" not in col_names:
             await conn.execute(text("ALTER TABLE document ADD COLUMN share_token TEXT"))
+        # 迁移：Document 表加 current_version 列
+        if "current_version" not in col_names:
+            await conn.execute(text("ALTER TABLE document ADD COLUMN current_version INTEGER NOT NULL DEFAULT 1"))
         # 开启 WAL，提升 SQLite 并发读性能
         await conn.execute(__import__("sqlalchemy").text("PRAGMA journal_mode=WAL"))
         # FTS5 全文索引虚表

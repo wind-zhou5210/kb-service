@@ -19,12 +19,12 @@ from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
+from sqlmodel import func, select
 
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.security import CurrentUser
-from app.models import Collection, Document, FileBlob
+from app.models import Collection, Document, DocumentVersion, FileBlob
 from app.services.render import wrap_html_for_srcdoc
 from app.storage import storage
 
@@ -63,6 +63,7 @@ async def upload_document(
     files: Annotated[list[UploadFile], File(...)],
     session: Annotated[AsyncSession, Depends(get_session)],
     user: CurrentUser,
+    mode: Annotated[str, Query()] = "append",
 ):
     col = await session.get(Collection, col_id)
     if not col:
@@ -75,6 +76,7 @@ async def upload_document(
     existing_sha1s: set[str] = {row[0] for row in existing_rows}
 
     created = []
+    updated = []
     duplicated: list[str] = []
     file_data_list: list[tuple[bytes, str]] = []
     seen_in_batch: set[str] = set()  # 同一批次内的 SHA1 去重
@@ -102,42 +104,106 @@ async def upload_document(
 
         seen_in_batch.add(sha1)
 
-        # FileBlob 去重：存在则引用计数 +1
-        blob = await session.get(FileBlob, sha1)
-        if blob:
-            blob.ref_count += 1
+        # Overwrite 模式：按 (collection_id, filename) 查找现有文档
+        existing_doc: Document | None = None
+        if mode == "overwrite":
+            existing_doc = (await session.execute(
+                select(Document).where(
+                    Document.collection_id == col_id,
+                    Document.filename == f.filename,
+                )
+            )).scalars().first()
+
+        if existing_doc and mode == "overwrite":
+            # 内容完全相同则跳过
+            if existing_doc.content_sha1 == sha1:
+                duplicated.append(f.filename or "")
+                continue
+
+            # 创建版本快照：记录当前内容
+            max_ver = (await session.execute(
+                select(func.coalesce(func.max(DocumentVersion.version), 0)).where(
+                    DocumentVersion.document_id == existing_doc.id
+                )
+            )).scalar()
+            old_ver = DocumentVersion(
+                document_id=existing_doc.id,
+                version=max_ver + 1,
+                content_sha1=existing_doc.content_sha1,
+                filename=existing_doc.filename,
+                ext=existing_doc.ext,
+                size=existing_doc.size,
+            )
+            session.add(old_ver)
+
+            # 旧 blob ref_count++（DocumentVersion 引用它）
+            old_blob = await session.get(FileBlob, existing_doc.content_sha1)
+            if old_blob:
+                old_blob.ref_count += 1
+
+            # 新 blob 引用
+            blob = await session.get(FileBlob, sha1)
+            if blob:
+                blob.ref_count += 1
+            else:
+                blob = FileBlob(sha1=sha1, ext=ext, size=size, ref_count=1)
+                session.add(blob)
+
+            # 更新 Document
+            existing_doc.content_sha1 = sha1
+            existing_doc.size = size
+            existing_doc.ext = ext
+            existing_doc.current_version += 1
+            existing_doc.updated_at = datetime.now(timezone.utc)
+            session.add(existing_doc)
+            updated.append(existing_doc)
+            file_data_list.append((data, ext))
         else:
-            blob = FileBlob(sha1=sha1, ext=ext, size=size, ref_count=1)
-            session.add(blob)
+            # 原有 append 逻辑
+            blob = await session.get(FileBlob, sha1)
+            if blob:
+                blob.ref_count += 1
+            else:
+                blob = FileBlob(sha1=sha1, ext=ext, size=size, ref_count=1)
+                session.add(blob)
 
-        doc = Document(
-            collection_id=col_id,
-            title=os.path.splitext(f.filename)[0],
-            filename=f.filename,
-            ext=ext,
-            content_sha1=sha1,
-            size=size,
-        )
-        session.add(doc)
-        created.append(doc)
-        file_data_list.append((data, ext))
+            doc = Document(
+                collection_id=col_id,
+                title=os.path.splitext(f.filename)[0],
+                filename=f.filename,
+                ext=ext,
+                content_sha1=sha1,
+                size=size,
+            )
+            session.add(doc)
+            created.append(doc)
+            file_data_list.append((data, ext))
 
-    # 全部文件均为重复内容
-    if not created and duplicated:
+    # 全部文件均为重复内容（既没有新增也没有覆盖更新）
+    if not created and not updated and duplicated:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             f"以下文件内容与集合中已有文件重复，已跳过: {', '.join(duplicated)}",
         )
 
-    if created:
+    if created or updated:
         col.updated_at = datetime.now(timezone.utc)
         await session.commit()
         for d in created:
             await session.refresh(d)
+        for d in updated:
+            await session.refresh(d)
 
         # 同步 FTS 索引
-        for d, (fdata, fext) in zip(created, file_data_list):
+        fts_data = list(zip(created, file_data_list[:len(created)]))
+        fts_data += list(zip(updated, file_data_list[len(created):]))
+        for d, (fdata, fext) in fts_data:
             body_text = _extract_text(fdata, fext)
+            if d in updated:
+                await session.execute(
+                    text("DELETE FROM fts_index WHERE document_id = :doc_id"),
+                    {"doc_id": d.id},
+                )
             await session.execute(text(
                 "INSERT INTO fts_index (document_id, title, collection_name, body_text) "
                 "VALUES (:doc_id, :title, :col_name, :body)"
@@ -146,6 +212,7 @@ async def upload_document(
 
     return UploadResult(
         created=created,
+        updated=updated,
         duplicated=duplicated,
     )
 
@@ -201,6 +268,7 @@ async def download_document(
 
 class UploadResult(BaseModel):
     created: list  # list of Document — 实际新增的文档
+    updated: list  # list of Document — 被覆盖更新的文档
     duplicated: list[str]  # 因内容重复被跳过的文件名列表
 
 
@@ -303,19 +371,173 @@ async def delete_document(
     # 清理 FTS 索引
     await session.execute(text("DELETE FROM fts_index WHERE document_id = :doc_id"), {"doc_id": doc_id})
 
+    # 查询所有版本（含当前内容 sha1）
+    versions = (await session.execute(
+        select(DocumentVersion).where(DocumentVersion.document_id == doc_id)
+    )).scalars().all()
+
+    # 收集所有 blob sha1，去重后统一释放 ref_count
+    all_sha1s = {sha1}  # 当前内容
+    for v in versions:
+        all_sha1s.add(v.content_sha1)
+
+    # 删除所有版本
+    for v in versions:
+        await session.delete(v)
+
+    # 删除文档
     await session.delete(doc)
 
-    # 引用计数 -1，归零删物理文件
-    blob = await session.get(FileBlob, sha1)
-    if blob:
-        blob.ref_count -= 1
-        if blob.ref_count <= 0:
-            await session.delete(blob)
-            await storage.delete(sha1)
+    # 逐个释放 ref_count 并清理物理文件
+    for s in all_sha1s:
+        blob = await session.get(FileBlob, s)
+        if blob:
+            count = 1 if s == sha1 else 0
+            count += sum(1 for v in versions if v.content_sha1 == s)
+            blob.ref_count -= count
+            if blob.ref_count <= 0:
+                await session.delete(blob)
+                await storage.delete(s)
 
     col = await session.get(Collection, col_id)
     if col:
         col.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+
+
+@router.get("/documents/{doc_id}/versions")
+async def list_versions(
+    doc_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
+    stmt = select(DocumentVersion).where(
+        DocumentVersion.document_id == doc_id
+    ).order_by(DocumentVersion.version.desc())
+    return (await session.execute(stmt)).scalars().all()
+
+
+@router.get("/documents/{doc_id}/versions/{version}")
+async def get_version(
+    doc_id: int,
+    version: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    ver = (await session.execute(
+        select(DocumentVersion).where(
+            DocumentVersion.document_id == doc_id,
+            DocumentVersion.version == version,
+        )
+    )).scalars().first()
+    if not ver:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "版本不存在")
+    data = await storage.read(ver.content_sha1)
+    return {
+        "version": ver,
+        "content": data.decode("utf-8", errors="replace"),
+    }
+
+
+@router.post("/documents/{doc_id}/versions/{version}/restore")
+async def restore_version(
+    doc_id: int,
+    version: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: CurrentUser,
+):
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
+
+    target = (await session.execute(
+        select(DocumentVersion).where(
+            DocumentVersion.document_id == doc_id,
+            DocumentVersion.version == version,
+        )
+    )).scalars().first()
+    if not target:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "版本不存在")
+
+    # 先保存当前内容为新版本
+    max_ver = (await session.execute(
+        select(func.coalesce(func.max(DocumentVersion.version), 0)).where(
+            DocumentVersion.document_id == doc_id
+        )
+    )).scalar()
+    new_ver = DocumentVersion(
+        document_id=doc_id,
+        version=max_ver + 1,
+        content_sha1=doc.content_sha1,
+        filename=doc.filename,
+        ext=doc.ext,
+        size=doc.size,
+    )
+    session.add(new_ver)
+
+    # 旧 blob ref_count++（新版本引用它）
+    old_blob = await session.get(FileBlob, doc.content_sha1)
+    if old_blob:
+        old_blob.ref_count += 1
+
+    # 目标版本 blob ref_count++（Document 引用它）
+    target_blob = await session.get(FileBlob, target.content_sha1)
+    if target_blob:
+        target_blob.ref_count += 1
+
+    # 更新 Document
+    doc.content_sha1 = target.content_sha1
+    doc.size = target.size
+    doc.ext = target.ext
+    doc.current_version += 1
+    doc.updated_at = datetime.now(timezone.utc)
+    session.add(doc)
+
+    # 更新 FTS 索引
+    data = await storage.read(target.content_sha1)
+    body_text = _extract_text(data, target.ext)
+    await session.execute(
+        text("DELETE FROM fts_index WHERE document_id = :doc_id"),
+        {"doc_id": doc_id},
+    )
+    col = await session.get(Collection, doc.collection_id)
+    col_name = col.name if col else ""
+    await session.execute(
+        text("INSERT INTO fts_index (document_id, title, collection_name, body_text) "
+             "VALUES (:doc_id, :title, :col_name, :body)"),
+        {"doc_id": doc_id, "title": doc.title, "col_name": col_name, "body": body_text},
+    )
+
+    await session.commit()
+    await session.refresh(doc)
+    return doc
+
+
+@router.delete("/documents/{doc_id}/versions/{version}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_version(
+    doc_id: int,
+    version: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: CurrentUser,
+):
+    ver = (await session.execute(
+        select(DocumentVersion).where(
+            DocumentVersion.document_id == doc_id,
+            DocumentVersion.version == version,
+        )
+    )).scalars().first()
+    if not ver:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "版本不存在")
+
+    blob = await session.get(FileBlob, ver.content_sha1)
+    if blob:
+        blob.ref_count -= 1
+        if blob.ref_count <= 0:
+            await session.delete(blob)
+            await storage.delete(ver.content_sha1)
+
+    await session.delete(ver)
     await session.commit()
 
 

@@ -30,3 +30,15 @@ export interface SearchResult {
   collection_name: string;
   snippet: string;
 }
+
+export interface DocumentVersion {
+  id: number;
+  document_id: number;
+  version: number;
+  content_sha1: string;
+  filename: string;
+  ext: string;
+  size: number;
+  change_note: string | null;
+  created_at: string;
+}

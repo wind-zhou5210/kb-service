@@ -21,7 +21,19 @@ export default function DocListItem({ doc, active, onClick, dragHandleProps, onS
         {isMd ? <FileTextOutlined /> : <Html5Outlined />}
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="doc-name">{doc.title}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div className="doc-name">{doc.title}</div>
+          {(doc.current_version ?? 1) > 1 && (
+            <span style={{
+              fontSize: 10, color: 'var(--color-text-tertiary)',
+              background: 'var(--color-border-light)',
+              padding: '0 4px', borderRadius: 3,
+              lineHeight: '16px', flexShrink: 0,
+            }}>
+              v{doc.current_version}
+            </span>
+          )}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
           <span style={{ fontSize: 11, color: 'var(--ink-400)' }}>
             {formatSize(doc.size)} · {relativeTime(doc.created_at)}

@@ -55,6 +55,7 @@ export interface DocumentItem {
   note: string | null
   sort_order: number
   share_token: string | null
+  current_version?: number
   created_at: string
   updated_at: string
 }
@@ -94,12 +95,16 @@ export const api = {
   listDocuments: (colId: number) =>
     client.get<DocumentItem[]>(`/collections/${colId}/documents`).then((r) => r.data),
 
-  uploadDocuments: (colId: number, files: File[]) => {
+  uploadDocuments: (colId: number, files: File[], mode?: 'append' | 'overwrite') => {
     const form = new FormData()
     files.forEach((f) => form.append('files', f))
-    return client.post<{ created: DocumentItem[]; duplicated: string[] }>(`/collections/${colId}/documents`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then((r) => r.data)
+    const params: Record<string, string> = {}
+    if (mode === 'overwrite') params.mode = 'overwrite'
+    return client.post<{ created: DocumentItem[]; updated: DocumentItem[]; duplicated: string[] }>(
+      `/collections/${colId}/documents`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        params,
+      }).then((r) => r.data)
   },
 
   getDocument: (id: number) =>
@@ -137,4 +142,21 @@ export const api = {
 
   getSharedDocument: (token: string) =>
     client.get<{ document: { id: number; title: string; ext: string; size: number; created_at: string }; ext: string; content: string }>(`/share/doc/${token}`).then((r) => r.data),
+
+  // ---- 版本历史 ----
+  listVersions: (docId: number) =>
+    client.get<Array<{ id: number; document_id: number; version: number; content_sha1: string; filename: string; ext: string; size: number; change_note: string | null; created_at: string }>>(
+      `/documents/${docId}/versions`
+    ).then((r) => r.data),
+
+  getVersionContent: (docId: number, version: number) =>
+    client.get<{ version: any; content: string }>(
+      `/documents/${docId}/versions/${version}`
+    ).then((r) => r.data),
+
+  restoreVersion: (docId: number, version: number) =>
+    client.post<DocumentItem>(`/documents/${docId}/versions/${version}/restore`).then((r) => r.data),
+
+  deleteVersion: (docId: number, version: number) =>
+    client.delete(`/documents/${docId}/versions/${version}`),
 }
