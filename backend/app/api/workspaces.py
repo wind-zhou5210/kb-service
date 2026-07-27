@@ -27,7 +27,7 @@ from sqlmodel import select
 
 from app.core.config import settings
 from app.core.database import get_session
-from app.core.security import CurrentUser, CurrentUserFromQuery
+from app.core.security import CurrentUser, CurrentUserFromQuery, CurrentUserOptional
 from app.models import Workspace, WorkspaceFile
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
@@ -431,7 +431,7 @@ async def serve_workspace_file(
     ws_id: int,
     path: str,
     session: Annotated[AsyncSession, Depends(get_session)],
-    _user: CurrentUserFromQuery,
+    _user: CurrentUserOptional,
     render: str | None = Query(None),
 ):
     """提供工作空间内文件内容。

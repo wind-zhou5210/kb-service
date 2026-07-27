@@ -74,3 +74,28 @@ async def get_current_user_from_query(
 
 
 CurrentUserFromQuery = Annotated[str, Depends(get_current_user_from_query)]
+
+
+async def get_current_user_optional(
+    token: str | None = Query(None, alias="jwt"),
+    authorization: str | None = Header(None, alias="Authorization"),
+) -> str | None:
+    """可选的认证依赖：有 JWT 则返回用户名，无 JWT 返回 None（不抛异常）。
+
+    用于 iframe 内子资源加载（CSS/JS/图片），这些请求不会携带父页面的 JWT。
+    """
+    token_str = None
+    if authorization and authorization.startswith("Bearer "):
+        token_str = authorization[7:]
+    elif token:
+        token_str = token
+    if not token_str:
+        return None
+    try:
+        payload = jwt.decode(token_str, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        return payload.get("sub")
+    except JWTError:
+        return None
+
+
+CurrentUserOptional = Annotated[str | None, Depends(get_current_user_optional)]
