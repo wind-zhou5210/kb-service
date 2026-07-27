@@ -57,3 +57,29 @@ class DocumentVersion(SQLModel, table=True):
     size: int
     change_note: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class Workspace(SQLModel, table=True):
+    """工作空间：隔离的文档目录，可独立管理版本与分享。"""
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    description: str | None = None
+    storage_path: str  # 磁盘路径 /data/workspaces/{id}/
+    share_token: str | None = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class WorkspaceFile(SQLModel, table=True):
+    """工作空间内的文件记录（支持嵌套路径资源）。"""
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "path", name="uq_workspace_file"),
+    )
+    id: int | None = Field(default=None, primary_key=True)
+    workspace_id: int = Field(foreign_key="workspace.id", index=True)
+    path: str  # 相对于工作空间根的路径
+    sha1: str
+    size: int
+    mime_type: str
+    is_asset: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
