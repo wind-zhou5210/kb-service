@@ -74,6 +74,25 @@ export interface SharedCollection {
   documents: DocumentItem[]
 }
 
+export interface Workspace {
+  id: number
+  name: string
+  description: string | null
+  doc_count: number
+  total_size: number
+  share_token: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkspaceTreeNode {
+  name: string
+  type: 'file' | 'directory'
+  path?: string
+  is_asset?: boolean
+  children?: WorkspaceTreeNode[]
+}
+
 // ---- API ----
 export const api = {
   login: (username: string, password: string) =>
@@ -159,4 +178,43 @@ export const api = {
 
   deleteVersion: (docId: number, version: number) =>
     client.delete(`/documents/${docId}/versions/${version}`),
+
+  // ─── Workspace ───
+  listWorkspaces: () =>
+    client.get<Workspace[]>('/workspaces').then(r => r.data),
+
+  createWorkspace: (name: string, description?: string) =>
+    client.post<Workspace>('/workspaces', { name, description }).then(r => r.data),
+
+  getWorkspace: (id: number) =>
+    client.get<Workspace>(`/workspaces/${id}`).then(r => r.data),
+
+  updateWorkspace: (id: number, data: { name?: string; description?: string }) =>
+    client.patch<Workspace>(`/workspaces/${id}`, data).then(r => r.data),
+
+  deleteWorkspace: (id: number) =>
+    client.delete(`/workspaces/${id}`),
+
+  uploadWorkspaceZip: (id: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return client.post<{ file_count: number }>(`/workspaces/${id}/upload`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
+
+  getWorkspaceTree: (id: number) =>
+    client.get<WorkspaceTreeNode[]>(`/workspaces/${id}/tree`).then(r => r.data),
+
+  createWorkspaceShare: (id: number) =>
+    client.post<{ share_token: string }>(`/workspaces/${id}/share`).then(r => r.data),
+
+  revokeWorkspaceShare: (id: number) =>
+    client.delete(`/workspaces/${id}/share`),
+
+  getSharedWorkspace: (token: string) =>
+    client.get<Workspace>(`/workspaces/share/${token}`).then(r => r.data),
+
+  getSharedWorkspaceTree: (token: string) =>
+    client.get<WorkspaceTreeNode[]>(`/workspaces/share/${token}/tree`).then(r => r.data),
 }
