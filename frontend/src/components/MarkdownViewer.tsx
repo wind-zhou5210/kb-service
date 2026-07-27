@@ -11,9 +11,11 @@ import type { TocItem } from './DocToc'
 interface Props {
   content: string
   onTocReady?: (items: TocItem[]) => void
+  onInternalLink?: (path: string) => void
+  workspaceServePrefix?: string  // e.g. "/api/workspaces/1/serve/"
 }
 
-function MarkdownViewerInner({ content, onTocReady }: Props) {
+function MarkdownViewerInner({ content, onTocReady, onInternalLink, workspaceServePrefix }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // 渲染后从 DOM 提取标题，生成 TOC
@@ -41,6 +43,32 @@ function MarkdownViewerInner({ content, onTocReady }: Props) {
     root.addEventListener('click', onClick)
     return () => root.removeEventListener('click', onClick)
   }, [])
+
+  // 拦截 workspace 内部链接，在页面内导航
+  useEffect(() => {
+    const root = containerRef.current
+    if (!root || !onInternalLink || !workspaceServePrefix) return
+
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement).closest('a')
+      if (!a) return
+      const href = a.getAttribute('href')
+      if (!href) return
+
+      // Don't intercept external URLs or anchor links
+      if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('#')) return
+
+      // Check if it's a workspace internal link
+      if (href.startsWith(workspaceServePrefix)) {
+        e.preventDefault()
+        const path = href.slice(workspaceServePrefix.length)
+        onInternalLink(path)
+      }
+    }
+
+    root.addEventListener('click', onClick)
+    return () => root.removeEventListener('click', onClick)
+  }, [content, onInternalLink, workspaceServePrefix])
 
   return (
     <div className="md-body" ref={containerRef}>
