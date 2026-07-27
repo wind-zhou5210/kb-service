@@ -7,6 +7,7 @@ import CollectionDetail from './pages/CollectionDetail'
 import Search from './pages/Search'
 import SharedCollection from './pages/SharedCollection'
 import SharedDocument from './pages/SharedDocument'
+import SharedWorkspace from './pages/SharedWorkspace'
 
 /** 鉴权守卫：未登录跳 /login，并记住来源路径 */
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -48,6 +49,7 @@ export default function App() {
       />
       <Route path="/share/:token" element={<SharedCollection />} />
       <Route path="/share/doc/:token" element={<SharedDocument />} />
+      <Route path="/share/workspace/:token" element={<SharedWorkspace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
