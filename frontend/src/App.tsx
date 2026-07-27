@@ -7,6 +7,8 @@ import CollectionDetail from './pages/CollectionDetail'
 import Search from './pages/Search'
 import SharedCollection from './pages/SharedCollection'
 import SharedDocument from './pages/SharedDocument'
+import Workspaces from './pages/Workspaces'
+import WorkspaceDetail from './pages/WorkspaceDetail'
 import SharedWorkspace from './pages/SharedWorkspace'
 
 /** 鉴权守卫：未登录跳 /login，并记住来源路径 */
@@ -44,6 +46,22 @@ export default function App() {
         element={
           <RequireAuth>
             <Search />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/workspaces"
+        element={
+          <RequireAuth>
+            <Workspaces />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/workspaces/:id"
+        element={
+          <RequireAuth>
+            <WorkspaceDetail />
           </RequireAuth>
         }
       />
