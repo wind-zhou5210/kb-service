@@ -26,6 +26,15 @@ class Settings(BaseSettings):
     allowed_exts: list[str] = [".md", ".html", ".htm"]
     max_upload_mb: int = 10
 
+    # 工作区
+    workspace_dir: Path = Path("/data/workspaces")
+    workspace_max_upload_mb: int = 500
+    workspace_blocked_exts: list[str] = [
+        ".exe", ".bat", ".cmd", ".com", ".sh", ".bash", ".dll", ".so",
+        ".dylib", ".dmg", ".msi", ".scr", ".pif", ".vbs", ".vbe",
+        ".jse", ".wsf", ".wsh", ".ps1", ".psm1",
+    ]
+
     @property
     def db_url(self) -> str:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -38,3 +47,4 @@ class Settings(BaseSettings):
 
 settings = Settings()
 settings.storage_dir.mkdir(parents=True, exist_ok=True)
+settings.workspace_dir.mkdir(parents=True, exist_ok=True)

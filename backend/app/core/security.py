@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -45,3 +45,57 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> str
 
 # 共享依赖类型，路由里直接用
 CurrentUser = Annotated[str, Depends(get_current_user)]
+
+
+async def get_current_user_from_query(
+    token: str | None = Query(None, alias="jwt"),
+    authorization: str | None = Header(None, alias="Authorization"),
+) -> str:
+    """兼容 iframe src 中通过 ?jwt=xxx 传递的 token（iframe 内无法发送 Authorization header）。"""
+    cred_exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="无效的认证凭据",
+    )
+    token_str = None
+    if authorization and authorization.startswith("Bearer "):
+        token_str = authorization[7:]
+    elif token:
+        token_str = token
+    if not token_str:
+        raise cred_exc
+    try:
+        payload = jwt.decode(token_str, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        username: str | None = payload.get("sub")
+        if username is None:
+            raise cred_exc
+        return username
+    except JWTError:
+        raise cred_exc
+
+
+CurrentUserFromQuery = Annotated[str, Depends(get_current_user_from_query)]
+
+
+async def get_current_user_optional(
+    token: str | None = Query(None, alias="jwt"),
+    authorization: str | None = Header(None, alias="Authorization"),
+) -> str | None:
+    """可选的认证依赖：有 JWT 则返回用户名，无 JWT 返回 None（不抛异常）。
+
+    用于 iframe 内子资源加载（CSS/JS/图片），这些请求不会携带父页面的 JWT。
+    """
+    token_str = None
+    if authorization and authorization.startswith("Bearer "):
+        token_str = authorization[7:]
+    elif token:
+        token_str = token
+    if not token_str:
+        return None
+    try:
+        payload = jwt.decode(token_str, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        return payload.get("sub")
+    except JWTError:
+        return None
+
+
+CurrentUserOptional = Annotated[str | None, Depends(get_current_user_optional)]

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Dropdown, Input } from 'antd'
-import { LogoutOutlined, SearchOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons'
+import { useLocation } from 'react-router-dom'
+import { Button, Dropdown, Input, Tabs } from 'antd'
+import { LogoutOutlined, SearchOutlined, SunOutlined, MoonOutlined, FolderOutlined, BuildOutlined } from '@ant-design/icons'
 import { useAuth } from '../store/auth'
 import { useTheme } from '../store/theme'
 
@@ -11,6 +12,7 @@ interface Props {
 
 export default function AppLayout({ children }: Props) {
   const navigate = useNavigate()
+  const location = useLocation()
   const logout = useAuth((s) => s.logout)
   const currentTheme = useTheme((s) => s.theme)
   const toggleTheme = useTheme((s) => s.toggleTheme)
@@ -27,6 +29,26 @@ export default function AppLayout({ children }: Props) {
         <div className="logo" onClick={() => navigate('/')}>
           <div className="logo-mark">K</div>
           <span>文件知识库</span>
+        </div>
+        <div style={{ display: 'flex', gap: 4, marginLeft: 16 }}>
+          <Button
+            type={location.pathname === '/' || location.pathname.startsWith('/collections') ? 'primary' : 'text'}
+            size="small"
+            icon={<FolderOutlined />}
+            onClick={() => navigate('/')}
+            style={{ borderRadius: 6, fontSize: 13 }}
+          >
+            知识集合
+          </Button>
+          <Button
+            type={location.pathname.startsWith('/workspaces') ? 'primary' : 'text'}
+            size="small"
+            icon={<BuildOutlined />}
+            onClick={() => navigate('/workspaces')}
+            style={{ borderRadius: 6, fontSize: 13 }}
+          >
+            工作空间
+          </Button>
         </div>
         <Input
           allowClear
