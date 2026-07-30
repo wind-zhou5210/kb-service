@@ -203,6 +203,9 @@ export const api = {
     }).then(r => r.data)
   },
 
+  workspaceDownloadUrl: (id: number) =>
+    `/api/workspaces/${id}/download?jwt=${encodeURIComponent(localStorage.getItem('kb_token') || '')}`,
+
   getWorkspaceTree: (id: number) =>
     client.get<WorkspaceTreeNode[]>(`/workspaces/${id}/tree`).then(r => r.data),
 
