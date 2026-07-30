@@ -453,3 +453,10 @@ body {
   background: var(--bg);
   color: var(--ink-900);
 }
+
+/* ---- 触摸设备：44px 最小触摸目标（WCAG） ---- */
+@media (pointer: coarse) {
+  .doc-item { min-height: 44px; }
+  .ant-tree-treenode { min-height: 44px; align-items: center; }
+  .app-header button { min-width: 44px; min-height: 44px; }
+}
