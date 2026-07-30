@@ -79,6 +79,27 @@ def _is_blocked_ext(filename: str) -> bool:
     return ext in settings.workspace_blocked_exts
 
 
+def _fix_zip_filename(entry: zipfile.ZipInfo) -> str:
+    """修正 zip 条目文件名中文乱码。
+
+    zipfile 对未设置 UTF-8 标志位（0x800）的条目按 zip 规范用 cp437 解码，
+    Windows 压缩工具打包的中文文件名（GBK 或未标记的 UTF-8）会因此变成乱码。
+    此处还原 cp437 原始字节后依次尝试 UTF-8、GBK 解码。
+    """
+    if entry.flag_bits & 0x800:
+        return entry.filename
+    try:
+        raw = entry.filename.encode("cp437")
+    except UnicodeEncodeError:
+        return entry.filename
+    for enc in ("utf-8", "gbk"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return entry.filename
+
+
 def _rewrite_md_images(content: str, serve_prefix: str, file_dir: str) -> str:
     """将 Markdown 中相对路径的图片引用重写为绝对 URL。"""
     base_path = file_dir.replace("\\", "/").strip("/")
@@ -351,23 +372,26 @@ async def upload_workspace_zip(
 
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         for entry in zf.infolist():
+            # 修正中文等非 ASCII 文件名乱码
+            name = _fix_zip_filename(entry)
+
             # 目录条目：创建空目录，但不生成记录
             if entry.is_dir():
-                dir_path = os.path.join(storage_path, entry.filename)
+                dir_path = os.path.join(storage_path, name)
                 os.makedirs(dir_path, exist_ok=True)
                 continue
 
             # 检查路径穿越
-            norm_path = os.path.normpath(entry.filename)
+            norm_path = os.path.normpath(name)
             if norm_path.startswith("..") or os.path.isabs(norm_path):
                 continue
 
             # 跳过隐藏文件/目录、node_modules
-            if _should_skip(entry.filename):
+            if _should_skip(name):
                 continue
 
             # 跳过禁止的扩展名
-            if _is_blocked_ext(entry.filename):
+            if _is_blocked_ext(name):
                 continue
 
             # 确保父目录存在
