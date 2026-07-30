@@ -109,7 +109,7 @@ export default function SharedWorkspace() {
             <div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 4 }}>{workspace.description}</div>
           )}
           <div style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginBottom: 4 }}>
-            {workspace.doc_count} 个文件 · {formatSize(workspace.total_size)}
+            {workspace.file_count} 个文件 · {formatSize(workspace.total_size)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-300)', display: 'flex', alignItems: 'center', gap: 4 }}>
             <LockOutlined /> 只读分享

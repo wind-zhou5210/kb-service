@@ -195,7 +195,7 @@ export default function WorkspaceDetail() {
             <div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 4 }}>{workspace.description}</div>
           )}
           <div style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginBottom: 10 }}>
-            {workspace.doc_count} 个文件 · {formatSize(workspace.total_size)}
+            {workspace.file_count} 个文件 · {formatSize(workspace.total_size)}
           </div>
           <Space>
             <Button type="primary" size="small" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>上传</Button>

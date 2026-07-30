@@ -78,7 +78,7 @@ export interface Workspace {
   id: number
   name: string
   description: string | null
-  doc_count: number
+  file_count: number
   total_size: number
   share_token: string | null
   created_at: string
