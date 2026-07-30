@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, memo } from 'react'
+import { Spin } from 'antd'
 
 interface Props {
   /** 后端包装好的 HTML 字符串（已净化 + 注入脚本），作为 iframe srcdoc */
@@ -23,11 +24,18 @@ interface Props {
  * - src 模式：传入 URL 直接加载（workspace 文件预览）
  *
  * 高度策略：默认固定视口高度（减去顶栏/header/padding）内部滚动；
- * fill 模式下高度 100% 填充父容器（用于全屏覆盖层）。
+ * fill 模式下高度 100% 填充父容器（用于全屏覆盖层/工作空间预览）。
+ *
+ * 闪变优化：iframe 在 load 事件前保持透明并显示占位，加载完成后淡入，
+ * 避免内容切换/首次渲染时暴露未完成样式的中间态（FOUC）。
  */
 function HtmlSandboxInner({ html, src, fill }: Props) {
   const [height, setHeight] = useState(600)
+  const [loaded, setLoaded] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  // 内容变化时重置加载态：新内容加载完成前隐藏 iframe，消除切换闪烁
+  useEffect(() => { setLoaded(false) }, [html, src])
 
   useEffect(() => {
     if (fill) return  // fill 模式用 100%，不监听视口
@@ -41,7 +49,8 @@ function HtmlSandboxInner({ html, src, fill }: Props) {
   // 监听 iframe 内 postMessage（srcdoc 和 src 模式均适用）
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'kb-resize' && iframeRef.current) {
+      // fill 模式高度始终 100%，忽略高度上报，避免覆盖布局
+      if (e.data?.type === 'kb-resize' && iframeRef.current && !fill) {
         iframeRef.current.style.height = `${Math.max(e.data.height, 300)}px`
       }
       if (e.data?.type === 'kb-navigate') {
@@ -50,27 +59,42 @@ function HtmlSandboxInner({ html, src, fill }: Props) {
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [])
+  }, [fill])
 
   if (!html && !src) {
     return null
   }
 
   return (
-    <iframe
-      ref={iframeRef}
-      title="html-content"
-      sandbox="allow-scripts"
-      {...(src ? { src } : { srcDoc: html })}
-      referrerPolicy="no-referrer"
-      loading="lazy"
-      style={{
-        width: '100%',
-        height: fill ? '100%' : `${height}px`,
-        border: 'none',
-        display: 'block',
-      }}
-    />
+    <div style={{ position: 'relative', width: '100%', height: fill ? '100%' : undefined }}>
+      {!loaded && (
+        <div
+          style={{
+            position: 'absolute', inset: 0, zIndex: 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--surface)',
+          }}
+        >
+          <Spin />
+        </div>
+      )}
+      <iframe
+        ref={iframeRef}
+        title="html-content"
+        sandbox="allow-scripts"
+        {...(src ? { src } : { srcDoc: html })}
+        referrerPolicy="no-referrer"
+        onLoad={() => setLoaded(true)}
+        style={{
+          width: '100%',
+          height: fill ? '100%' : `${height}px`,
+          border: 'none',
+          display: 'block',
+          opacity: loaded ? 1 : 0,
+          transition: 'opacity 0.18s var(--ease)',
+        }}
+      />
+    </div>
   )
 }
 
