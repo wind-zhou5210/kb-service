@@ -10,6 +10,7 @@ import MarkdownViewer from '../components/MarkdownViewer'
 import EmptyState from '../components/EmptyState'
 import { copyToClipboard } from '../utils/clipboard'
 import { useIsMobile } from '../hooks/useMediaQuery'
+import { useWorkspaceStore } from '../store/workspace'
 
 const { Dragger } = Upload
 const { TextArea } = Input
@@ -41,6 +42,8 @@ export default function WorkspaceDetail() {
   // 移动端：目录树改为 Drawer 呈现
   const isMobile = useIsMobile()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // 面包屑：上报当前工作空间
+  const setCurrent = useWorkspaceStore((s) => s.setCurrent)
 
   const toggleSidebar = () => {
     setCollapsed((c) => {
@@ -57,6 +60,7 @@ export default function WorkspaceDetail() {
         api.getWorkspaceTree(wsId),
       ])
       setWorkspace(ws)
+      setCurrent(ws)
       setTree(treeData)
       setShareToken(ws.share_token)
       // Auto-select first file if exists
@@ -68,6 +72,9 @@ export default function WorkspaceDetail() {
   }, [wsId])
 
   useEffect(() => { loadWorkspace() }, [loadWorkspace])
+
+  // 卸载时清空面包屑的当前空间
+  useEffect(() => () => setCurrent(null), [setCurrent])
 
   // Auto-refresh when navigate event fires from iframe
   useEffect(() => {
