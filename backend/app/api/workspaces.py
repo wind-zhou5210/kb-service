@@ -6,9 +6,11 @@ import os
 import re
 import secrets
 import shutil
+import tempfile
 import zipfile
 from datetime import datetime, timezone
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
@@ -19,11 +21,12 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
+from starlette.background import BackgroundTask
 
 from app.core.config import settings
 from app.core.database import get_session
@@ -77,6 +80,11 @@ def _should_skip(name: str) -> bool:
 def _is_blocked_ext(filename: str) -> bool:
     ext = os.path.splitext(filename)[1].lower()
     return ext in settings.workspace_blocked_exts
+
+
+def _sanitize_filename(name: str) -> str:
+    """清理文件名中 Windows/Unix 非法字符（\\ / : * ? " < > | 及控制字符）。"""
+    return re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", name).strip()
 
 
 def _fix_zip_filename(entry: zipfile.ZipInfo) -> str:
@@ -448,6 +456,53 @@ async def get_workspace_tree(
         select(WorkspaceFile).where(WorkspaceFile.workspace_id == ws_id)
     )).scalars().all()
     return _build_tree(files)
+
+
+@router.get("/{ws_id}/download")
+async def download_workspace_zip(
+    ws_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    _user: CurrentUserFromQuery,
+):
+    """将整个工作空间打包为 zip 下载。
+
+    以 workspace_file 记录为打包清单（与目录树一致），zip 内平铺不含根目录，
+    保证「下载 → 再上传」往返一致。临时文件打包，FileResponse 流式返回，
+    响应完成后由 BackgroundTask 删除临时文件。
+    支持 ?jwt=xxx 查询参数以兼容浏览器原生下载无法发送 Authorization header 的场景。
+    """
+    ws = await session.get(Workspace, ws_id)
+    if not ws:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "工作空间不存在")
+
+    files = (await session.execute(
+        select(WorkspaceFile).where(WorkspaceFile.workspace_id == ws_id)
+    )).scalars().all()
+    if not files:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "工作空间为空")
+
+    fd, tmp_path = tempfile.mkstemp(suffix=".zip")
+    os.close(fd)
+    try:
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in files:
+                disk_path = _safe_join(ws.storage_path, f.path)
+                # DB 有记录但磁盘缺失（如并发上传替换）：跳过不中断
+                if not os.path.isfile(disk_path):
+                    continue
+                zf.write(disk_path, arcname=f.path)
+    except BaseException:
+        os.unlink(tmp_path)
+        raise
+
+    download_name = _sanitize_filename(ws.name) or f"workspace-{ws_id}"
+    encoded = quote(f"{download_name}.zip")
+    return FileResponse(
+        tmp_path,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+        background=BackgroundTask(os.unlink, tmp_path),
+    )
 
 
 @router.get("/{ws_id}/serve/{path:path}")
