@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, Spin, Modal, Input, Skeleton, Space, Tag, message, Upload, Typography } from 'antd'
-import { UploadOutlined, ArrowLeftOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined } from '@ant-design/icons'
+import { UploadOutlined, ArrowLeftOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 import { api, type Workspace, type WorkspaceTreeNode } from '../api/client'
 import { formatSize, relativeTime } from '../utils/format'
 import WorkspaceTree from '../components/WorkspaceTree'
@@ -12,6 +12,8 @@ import { copyToClipboard } from '../utils/clipboard'
 
 const { Dragger } = Upload
 const { TextArea } = Input
+
+const SIDEBAR_COLLAPSED_KEY = 'kb_ws_sidebar_collapsed'
 
 export default function WorkspaceDetail() {
   const { id } = useParams<{ id: string }>()
@@ -33,6 +35,15 @@ export default function WorkspaceDetail() {
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
+  // 侧栏收起状态：持久化到 localStorage，刷新后保持
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1')
+
+  const toggleSidebar = () => {
+    setCollapsed((c) => {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, c ? '0' : '1')
+      return !c
+    })
+  }
 
   const loadWorkspace = useCallback(async () => {
     setLoading(true)
@@ -170,9 +181,10 @@ export default function WorkspaceDetail() {
   const servePrefix = `/api/workspaces/${wsId}/serve/`
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 52px)', overflow: 'hidden' }}>
-      {/* 左栏：目录树 */}
-      <aside style={{ width: 280, borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+    <div style={{ display: 'flex', height: 'calc(100vh - 52px)', overflow: 'hidden', position: 'relative' }}>
+      {/* 左栏：目录树（可收起，宽度过渡动画） */}
+      <aside style={{ width: collapsed ? 0 : 280, borderRight: collapsed ? 'none' : '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s var(--ease)' }}>
+        <div style={{ width: 280, height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: 14, borderBottom: '1px solid var(--subtle-border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/workspaces')} size="small" />
@@ -196,7 +208,22 @@ export default function WorkspaceDetail() {
         <div style={{ flex: 1, overflow: 'auto', padding: '8px 4px' }}>
           <WorkspaceTree treeData={tree} selectedFile={selectedFile || undefined} onSelect={setSelectedFile} />
         </div>
+        </div>
       </aside>
+
+      {/* 侧栏收起/展开按钮：悬浮于分界处，随侧栏平滑移动 */}
+      <Button
+        type="text"
+        size="small"
+        icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+        onClick={toggleSidebar}
+        title={collapsed ? '展开侧栏' : '收起侧栏'}
+        style={{
+          position: 'absolute', top: 8, left: collapsed ? 8 : 288, zIndex: 20,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          transition: 'left 0.2s var(--ease)',
+        }}
+      />
 
       {/* 右栏：内容区 */}
       <main style={{ flex: 1, overflow: 'auto', background: 'var(--surface)' }}>
@@ -213,8 +240,8 @@ export default function WorkspaceDetail() {
             workspaceServePrefix={servePrefix}
           />
         ) : isHtml && htmlSrc ? (
-          <div style={{ padding: 0 }}>
-            <HtmlSandbox src={htmlSrc} />
+          <div style={{ height: '100%' }}>
+            <HtmlSandbox src={htmlSrc} fill />
           </div>
         ) : (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-400)' }}>
