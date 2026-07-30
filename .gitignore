@@ -26,3 +26,6 @@ cli/dist/
 # 系统
 .DS_Store
 *.log
+
+# Git worktrees
+.worktrees/

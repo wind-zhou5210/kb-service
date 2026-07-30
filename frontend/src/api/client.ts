@@ -78,7 +78,7 @@ export interface Workspace {
   id: number
   name: string
   description: string | null
-  doc_count: number
+  file_count: number
   total_size: number
   share_token: string | null
   created_at: string
@@ -202,6 +202,9 @@ export const api = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data)
   },
+
+  workspaceDownloadUrl: (id: number) =>
+    `/api/workspaces/${id}/download?jwt=${encodeURIComponent(localStorage.getItem('kb_token') || '')}`,
 
   getWorkspaceTree: (id: number) =>
     client.get<WorkspaceTreeNode[]>(`/workspaces/${id}/tree`).then(r => r.data),

@@ -151,7 +151,7 @@ export default function Workspaces() {
                   </div>
                 </div>
                 <div style={{ marginTop: 12, display: 'flex', gap: 16, fontSize: 12, color: 'var(--ink-400)' }}>
-                  <span>{ws.doc_count} 个文件</span>
+                  <span>{ws.file_count} 个文件</span>
                   <span>{formatSize(ws.total_size)}</span>
                 </div>
                 <div style={{ marginTop: 2, fontSize: 12, color: 'var(--ink-300)' }}>

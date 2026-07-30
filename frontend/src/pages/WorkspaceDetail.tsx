@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, Spin, Modal, Input, Skeleton, Space, Tag, message, Upload, Typography } from 'antd'
-import { UploadOutlined, ArrowLeftOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
+import { UploadOutlined, DownloadOutlined, ArrowLeftOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 import { api, type Workspace, type WorkspaceTreeNode } from '../api/client'
 import { formatSize, relativeTime } from '../utils/format'
 import WorkspaceTree from '../components/WorkspaceTree'
@@ -125,6 +125,15 @@ export default function WorkspaceDetail() {
     } finally { setUploading(false) }
   }
 
+  // Download：<a> 触发浏览器原生下载（进度/取消由浏览器接管，不占页面内存）
+  const handleDownload = () => {
+    const a = document.createElement('a')
+    a.href = api.workspaceDownloadUrl(wsId)
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
+
   // Share
   const handleShare = async () => {
     try {
@@ -195,10 +204,11 @@ export default function WorkspaceDetail() {
             <div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 4 }}>{workspace.description}</div>
           )}
           <div style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginBottom: 10 }}>
-            {workspace.doc_count} 个文件 · {formatSize(workspace.total_size)}
+            {workspace.file_count} 个文件 · {formatSize(workspace.total_size)}
           </div>
           <Space>
             <Button type="primary" size="small" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>上传</Button>
+            <Button size="small" icon={<DownloadOutlined />} disabled={!workspace.file_count} onClick={handleDownload}>下载</Button>
             <Button size="small" icon={<ShareAltOutlined />} onClick={handleShare}>
               {shareToken ? '分享' : '分享'}
             </Button>
