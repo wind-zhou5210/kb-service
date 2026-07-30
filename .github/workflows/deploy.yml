@@ -76,6 +76,17 @@ jobs:
             ${{ env.IMAGE }}:frontend-${{ github.sha }}
 
       # ===== 阶段 4: 服务器部署 =====
+      # 先把仓库中的 compose 文件同步到服务器，避免服务器本地文件与仓库漂移
+      - name: Sync compose file to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: docker-compose.prod.yml
+          target: /root/kb-service/
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
