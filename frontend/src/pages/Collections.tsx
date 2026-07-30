@@ -9,6 +9,7 @@ import {
 import { SortableContext, rectSortingStrategy, useSortable, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { api, type Collection } from '../api/client'
+import { useCollectionStore } from '../store/collection'
 import CollectionCard from '../components/CollectionCard'
 import EmptyState from '../components/EmptyState'
 import { copyToClipboard } from '../utils/clipboard'
@@ -46,8 +47,11 @@ function SortableCard({ col, onEdit, onDelete, onShare, onRevokeShare, onClick }
 }
 
 export default function Collections() {
-  const [list, setList] = useState<Collection[]>([])
-  const [loading, setLoading] = useState(true)
+  const list = useCollectionStore((s) => s.list)
+  const loaded = useCollectionStore((s) => s.loaded)
+  const fetchList = useCollectionStore((s) => s.fetchList)
+  const mutate = useCollectionStore((s) => s.mutate)
+  const [loading, setLoading] = useState(!loaded)
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
@@ -61,13 +65,7 @@ export default function Collections() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  const load = async () => {
-    setLoading(true)
-    try { setList(await api.listCollections()) }
-    finally { setLoading(false) }
-  }
-
-  useEffect(() => { load() }, [])
+  useEffect(() => { fetchList().finally(() => setLoading(false)) }, [fetchList])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return list
@@ -80,7 +78,7 @@ export default function Collections() {
   const handleCreate = async () => {
     if (!newName.trim()) return
     await api.createCollection(newName.trim(), newDesc.trim() || undefined)
-    setNewName(''); setNewDesc(''); setCreateOpen(false); load()
+    setNewName(''); setNewDesc(''); setCreateOpen(false); await mutate()
   }
 
   const handleEdit = (c: Collection) => {
@@ -90,23 +88,23 @@ export default function Collections() {
   const handleEditSave = async () => {
     if (!editing || !editName.trim()) return
     await api.updateCollection(editing.id, { name: editName.trim(), description: editDesc.trim() || null })
-    setEditing(null); load()
+    setEditing(null); await mutate()
   }
 
-  const handleDelete = async (id: number) => { await api.deleteCollection(id); load() }
+  const handleDelete = async (id: number) => { await api.deleteCollection(id); await mutate() }
 
   const handleShare = async (c: Collection) => {
     const { share_token } = await api.createShareLink(c.id)
     const url = `${window.location.origin}/share/${share_token}`
     setShareUrl(url)
     setShareModal(c)
-    load()
+    await mutate()
   }
 
   const handleRevokeShare = async (id: number) => {
     await api.revokeShare(id)
     message.success('已取消分享')
-    load()
+    await mutate()
   }
 
   const handleDragEnd = async (e: DragEndEvent) => {
@@ -118,10 +116,11 @@ export default function Collections() {
     const reordered = [...list]
     const [moved] = reordered.splice(oldIndex, 1)
     reordered.splice(newIndex, 0, moved)
-    setList(reordered)
+    useCollectionStore.setState({ list: reordered })
     await Promise.all(
       reordered.map((c, i) => api.updateCollection(c.id, { sort_order: i }))
     )
+    await mutate()
   }
 
   const copyShareUrl = async () => {

@@ -16,5 +16,8 @@ export const useAuth = create<AuthState>((set) => ({
   logout: () => {
     localStorage.removeItem('kb_token')
     set({ token: null })
+    // 清空业务缓存，防止换账号后残留旧数据
+    import('./workspace').then((m) => m.useWorkspaceStore.getState().reset())
+    import('./collection').then((m) => m.useCollectionStore.getState().reset())
   },
 }))
