@@ -5,6 +5,7 @@ services:
     volumes:
       - ./data/files:/data/files
       - ./data/db:/data/db
+      - ./data/workspaces:/data/workspaces
     env_file:
       - .env
     restart: unless-stopped
