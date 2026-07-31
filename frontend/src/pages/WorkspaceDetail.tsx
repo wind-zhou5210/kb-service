@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Modal, Input, Skeleton, Space, message, Upload, Drawer } from 'antd'
+import { Button, Modal, Input, Skeleton, Space, message, Upload, Drawer, Tooltip } from 'antd'
 import { UploadOutlined, DownloadOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined, FileAddOutlined } from '@ant-design/icons'
 import { api, type Workspace, type WorkspaceTreeNode } from '../api/client'
 import { formatSize, relativeTime } from '../utils/format'
@@ -293,14 +293,20 @@ export default function WorkspaceDetail() {
         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginTop: 'var(--space-2)' }}>
           {workspace.file_count} 个文件 · {formatSize(workspace.total_size)}
         </div>
-        <Space style={{ marginTop: 'var(--space-3)' }} wrap>
+        <Space style={{ marginTop: 'var(--space-3)' }} size={4}>
           <Button type="primary" size="small" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>上传</Button>
-          <Button size="small" icon={<DownloadOutlined />} disabled={!workspace.file_count} onClick={handleDownload}>下载</Button>
-          <Button size="small" icon={<ShareAltOutlined />} onClick={handleShare}>
-            {shareToken ? '分享' : '分享'}
-          </Button>
-          <Button size="small" icon={<FileAddOutlined />} onClick={() => { setAddFilePath(''); setAddFile(null); setAddFileOpen(true) }} title="添加文件" />
-          <Button size="small" icon={<DeleteOutlined />} onClick={handleDelete} danger />
+          <Tooltip title="下载">
+            <Button size="small" icon={<DownloadOutlined />} disabled={!workspace.file_count} onClick={handleDownload} />
+          </Tooltip>
+          <Tooltip title="分享">
+            <Button size="small" icon={<ShareAltOutlined />} onClick={handleShare} />
+          </Tooltip>
+          <Tooltip title="添加文件">
+            <Button size="small" icon={<FileAddOutlined />} onClick={() => { setAddFilePath(''); setAddFile(null); setAddFileOpen(true) }} />
+          </Tooltip>
+          <Tooltip title="删除工作空间">
+            <Button size="small" icon={<DeleteOutlined />} onClick={handleDelete} danger />
+          </Tooltip>
         </Space>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-2) var(--space-1)' }}>
