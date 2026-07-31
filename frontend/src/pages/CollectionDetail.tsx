@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip, Select, message, Row, Col } from 'antd'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip, Select, message, Row, Col, Drawer } from 'antd'
 import {
-  ArrowLeftOutlined, UploadOutlined, DeleteOutlined, DownloadOutlined,
+  UploadOutlined, DeleteOutlined, DownloadOutlined,
   MoreOutlined, SearchOutlined, FileTextOutlined, Html5Outlined, FolderOutlined, EditOutlined,
-  FullscreenOutlined, FullscreenExitOutlined, StopOutlined, SwapOutlined, HistoryOutlined,
+  FullscreenOutlined, FullscreenExitOutlined, StopOutlined, SwapOutlined, HistoryOutlined, MenuOutlined,
 } from '@ant-design/icons'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -20,8 +20,10 @@ import DocToc, { type TocItem } from '../components/DocToc'
 import UploadModal from '../components/UploadModal'
 import VersionHistoryModal from '../components/VersionHistoryModal'
 import EmptyState from '../components/EmptyState'
+import SubNav from '../components/SubNav'
 import { formatSize, relativeTime } from '../utils/format'
 import { copyToClipboard } from '../utils/clipboard'
+import { useIsMobile } from '../hooks/useMediaQuery'
 import { useCollectionStore } from '../store/collection'
 
 const { TextArea } = Input
@@ -50,7 +52,6 @@ function SortableDoc({ doc, active, onClick, onShare }: {
 export default function CollectionDetail() {
   const { id } = useParams<{ id: string }>()
   const colId = Number(id)
-  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
   const [collection, setCollection] = useState<Collection | null>(null)
@@ -75,6 +76,9 @@ export default function CollectionDetail() {
   const [moveTarget, setMoveTarget] = useState<DocumentItem | null>(null)
   const [collections, setCollections] = useState<Collection[]>([])
   const [versionHistoryDoc, setVersionHistoryDoc] = useState<DocumentItem | null>(null)
+  // 移动端：文件列表改为 Drawer 呈现
+  const isMobile = useIsMobile()
+  const [drawerOpen, setDrawerOpen] = useState(false)
   // 面包屑：上报当前集合
   const setCurrent = useCollectionStore((s) => s.setCurrent)
 
@@ -119,6 +123,12 @@ export default function CollectionDetail() {
   }, [])
 
   const handleTocReady = useCallback((items: TocItem[]) => setTocItems(items), [])
+
+  // 列表点选文档：移动端选中后自动关闭 Drawer
+  const handleSelectDoc = (doc: DocumentItem) => {
+    viewDoc(doc)
+    if (isMobile) setDrawerOpen(false)
+  }
 
   // 从搜索结果跳转时自动选中文档
   useEffect(() => {
@@ -247,85 +257,112 @@ export default function CollectionDetail() {
   const isMd = selected?.ext === '.md'
   const selectedTags = selected?.tags?.split(',').map(t => t.trim()).filter(Boolean) ?? []
 
-  return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 52px)', overflow: 'hidden' }}>
-      {/* 左栏 */}
-      <aside style={{ width: 256, borderRight: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ padding: 14, borderBottom: '1px solid var(--subtle-border)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-            <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/')} size="small" />
-            <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>返回</span>
-          </div>
-          {collection && (
-            <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
-              <div style={{
-                width: 30, height: 30, borderRadius: 6, background: 'var(--subtle-bg)',
-                border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', color: 'var(--ink-500)', fontSize: 14,
-              }}>
-                <FolderOutlined />
+  // 侧栏内容：桌面端放 aside，移动端放 Drawer
+  const sidebarContent = (
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--subtle-border)' }}>
+        {collection && (
+          <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 6, background: 'var(--subtle-bg)',
+              border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', color: 'var(--ink-500)', fontSize: 14, flexShrink: 0,
+            }}>
+              <FolderOutlined />
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {collection.name}
               </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {collection.name}
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginTop: 1 }}>
-                  {docs.length} files
-                </div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginTop: 1 }}>
+                {docs.length} files
               </div>
             </div>
-          )}
-          <Button type="primary" icon={<UploadOutlined />} block onClick={() => setUploadOpen(true)} style={{ marginTop: 10 }}>
-            上传文件
-          </Button>
-        </div>
-
-        {docs.length > 0 && (
-          <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Input
-              size="small" allowClear
-              prefix={<SearchOutlined style={{ color: 'var(--ink-300)', fontSize: 11 }} />}
-              placeholder="搜索文件..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            {allTags.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {allTags.map(t => (
-                  <Tag
-                    key={t}
-                    color={tagFilter === t ? 'blue' : 'default'}
-                    style={{ cursor: 'pointer', fontSize: 11, margin: 0, borderRadius: 4 }}
-                    onClick={() => setTagFilter(tagFilter === t ? null : t)}
-                  >
-                    {t}
-                  </Tag>
-                ))}
-              </div>
-            )}
           </div>
         )}
+        <Button type="primary" icon={<UploadOutlined />} block onClick={() => setUploadOpen(true)} style={{ marginTop: 'var(--space-3)' }}>
+          上传文件
+        </Button>
+      </div>
 
-        <div style={{ flex: 1, overflow: 'auto', padding: '4px 8px' }}>
-          {loading ? (
-            <div style={{ padding: 12 }}>{[1,2,3,4].map((i) => <Skeleton key={i} active paragraph={{ rows: 1 }} title={{ width: '60%' }} style={{ marginBottom: 10 }} />)}</div>
-          ) : docs.length === 0 ? (
-            <div style={{ padding: 20 }}>
-              <EmptyState icon={<FileTextOutlined />} title="暂无文件" description="上传第一份文档" actionText="上传文件" onAction={() => setUploadOpen(true)} />
+      {docs.length > 0 && (
+        <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Input
+            size="small" allowClear
+            prefix={<SearchOutlined style={{ color: 'var(--ink-300)', fontSize: 11 }} />}
+            placeholder="搜索文件..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {allTags.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {allTags.map(t => (
+                <Tag
+                  key={t}
+                  color={tagFilter === t ? 'blue' : 'default'}
+                  style={{ cursor: 'pointer', fontSize: 11, margin: 0, borderRadius: 4 }}
+                  onClick={() => setTagFilter(tagFilter === t ? null : t)}
+                >
+                  {t}
+                </Tag>
+              ))}
             </div>
-          ) : filteredDocs.length === 0 ? (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-400)', fontSize: 12 }}>未找到匹配文件</div>
-          ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={filteredDocs.map(d => d.id)} strategy={verticalListSortingStrategy}>
-                {filteredDocs.map((doc) => (
-                  <SortableDoc key={doc.id} doc={doc} active={selected?.id === doc.id} onClick={() => viewDoc(doc)} onShare={handleDocShare} />
-                ))}
-              </SortableContext>
-            </DndContext>
           )}
         </div>
-      </aside>
+      )}
+
+      <div style={{ flex: 1, overflow: 'auto', padding: '4px 8px' }}>
+        {loading ? (
+          <div style={{ padding: 12 }}>{[1,2,3,4].map((i) => <Skeleton key={i} active paragraph={{ rows: 1 }} title={{ width: '60%' }} style={{ marginBottom: 10 }} />)}</div>
+        ) : docs.length === 0 ? (
+          <div style={{ padding: 20 }}>
+            <EmptyState icon={<FileTextOutlined />} title="暂无文件" description="上传第一份文档" actionText="上传文件" onAction={() => setUploadOpen(true)} />
+          </div>
+        ) : filteredDocs.length === 0 ? (
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--ink-400)', fontSize: 12 }}>未找到匹配文件</div>
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={filteredDocs.map(d => d.id)} strategy={verticalListSortingStrategy}>
+              {filteredDocs.map((doc) => (
+                <SortableDoc key={doc.id} doc={doc} active={selected?.id === doc.id} onClick={() => handleSelectDoc(doc)} onShare={handleDocShare} />
+              ))}
+            </SortableContext>
+          </DndContext>
+        )}
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      {/* 二级导航栏：面包屑 + 页面级操作 */}
+      <SubNav
+        actions={isMobile ? (
+          <Button type="text" size="small" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} aria-label="打开文件列表">文件列表</Button>
+        ) : undefined}
+      />
+
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      {/* 桌面端左栏：文件列表 */}
+      {!isMobile && (
+        <aside style={{ width: 'var(--sidebar-w)', borderRight: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 }}>
+          {sidebarContent}
+        </aside>
+      )}
+
+      {/* 移动端：文件列表 Drawer */}
+      {isMobile && (
+        <Drawer
+          title="文件列表"
+          placement="left"
+          width="min(320px, 85vw)"
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          styles={{ body: { padding: 0 } }}
+        >
+          {sidebarContent}
+        </Drawer>
+      )}
 
       {/* 内容区 */}
       <main style={{ flex: 1, overflow: 'auto', background: 'var(--surface)' }}>
@@ -339,7 +376,7 @@ export default function CollectionDetail() {
               {/* 文档顶栏 */}
               <div style={{
                 position: 'sticky', top: 0, zIndex: 10, background: 'var(--surface)',
-                borderBottom: '1px solid var(--subtle-border)', padding: '10px 32px',
+                borderBottom: '1px solid var(--subtle-border)', padding: 'var(--space-3) var(--space-8)',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <Space wrap>
@@ -372,22 +409,23 @@ export default function CollectionDetail() {
               )}
 
               {contentLoading ? (
-                <div style={{ padding: 32, maxWidth: 760, margin: '0 auto' }}><Skeleton active paragraph={{ rows: 8 }} /></div>
+                <div style={{ padding: 'var(--space-8)', maxWidth: 760, margin: '0 auto' }}><Skeleton active paragraph={{ rows: 8 }} /></div>
               ) : isMd ? (
                 <MarkdownViewer content={mdContent} onTocReady={handleTocReady} />
               ) : (
-                <div style={{ padding: 24 }}><HtmlSandbox html={htmlContent} /></div>
+                <div style={{ padding: 'var(--space-6)' }}><HtmlSandbox html={htmlContent} /></div>
               )}
             </div>
 
             {isMd && tocItems.length > 0 && (
-              <aside style={{ width: 208, flexShrink: 0, borderLeft: '1px solid var(--subtle-border)' }}>
+              <aside style={{ width: 'var(--toc-w)', flexShrink: 0, borderLeft: '1px solid var(--subtle-border)' }}>
                 <DocToc items={tocItems} />
               </aside>
             )}
           </div>
         )}
       </main>
+      </div>
 
       {fullscreen && selected && (
         <div style={{
@@ -405,7 +443,7 @@ export default function CollectionDetail() {
             {isMd ? (
               <MarkdownViewer content={mdContent} />
             ) : (
-              <div style={{ height: '100%', padding: 24 }}><HtmlSandbox html={htmlContent} fill /></div>
+              <div style={{ height: '100%', padding: 'var(--space-6)' }}><HtmlSandbox html={htmlContent} fill /></div>
             )}
           </div>
         </div>

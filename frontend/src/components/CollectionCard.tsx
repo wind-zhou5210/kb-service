@@ -42,19 +42,19 @@ export default function CollectionCard({ collection, docCount = 0, onClick, onEd
   return (
     <div className="col-card" onClick={onClick}>
       <div className="body">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }} {...dragHandleProps}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }} {...dragHandleProps}>
           <div
             style={{
               width: 32,
               height: 32,
-              borderRadius: 6,
+              borderRadius: 'var(--r-md)',
               background: 'var(--subtle-bg)',
               border: '1px solid var(--border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: 'var(--ink-500)',
-              fontSize: 15,
+              fontSize: 'var(--text-md)',
               flexShrink: 0,
             }}
           >
@@ -63,7 +63,7 @@ export default function CollectionCard({ collection, docCount = 0, onClick, onEd
           <div className="title" style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
             <div
               style={{
-                fontSize: 15,
+                fontSize: 'var(--text-md)',
                 fontWeight: 600,
                 color: 'var(--ink-900)',
                 overflow: 'hidden',
@@ -75,10 +75,10 @@ export default function CollectionCard({ collection, docCount = 0, onClick, onEd
             </div>
           </div>
           {collection.share_token && (
-            <ShareAltOutlined style={{ fontSize: 12, color: 'var(--ink-300)', flexShrink: 0 }} />
+            <ShareAltOutlined style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-300)', flexShrink: 0 }} />
           )}
         </div>
-        <div className="desc">
+        <div className="desc" style={collection.description ? undefined : { color: 'var(--ink-400)' }}>
           {collection.description || '暂无描述'}
         </div>
         <div className="meta">
@@ -118,7 +118,7 @@ export default function CollectionCard({ collection, docCount = 0, onClick, onEd
           >
             <span
               onClick={(e) => e.stopPropagation()}
-              style={{ padding: '2px 6px', borderRadius: 4, cursor: 'pointer', color: 'var(--ink-400)' }}
+              style={{ padding: '2px 6px', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--ink-400)' }}
             >
               <MoreOutlined />
             </span>
