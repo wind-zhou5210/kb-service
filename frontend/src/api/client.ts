@@ -203,6 +203,18 @@ export const api = {
     }).then(r => r.data)
   },
 
+  uploadWorkspaceFile: (id: number, path: string, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return client.post<{ status: 'created' | 'updated' | 'unchanged'; path: string; sha1: string; size: number }>(
+      `/workspaces/${id}/files?path=${encodeURIComponent(path)}`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }).then(r => r.data)
+  },
+
+  deleteWorkspaceFile: (id: number, path: string) =>
+    client.delete(`/workspaces/${id}/files?path=${encodeURIComponent(path)}`),
+
   workspaceDownloadUrl: (id: number) =>
     `/api/workspaces/${id}/download?jwt=${encodeURIComponent(localStorage.getItem('kb_token') || '')}`,
 
