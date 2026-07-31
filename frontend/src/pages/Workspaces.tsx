@@ -3,29 +3,26 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Card, Row, Col, Modal, Input, Skeleton, message, Tooltip } from 'antd'
 import { PlusOutlined, FolderOutlined, DeleteOutlined } from '@ant-design/icons'
 import { api, type Workspace } from '../api/client'
+import { useWorkspaceStore } from '../store/workspace'
 import { formatSize, relativeTime } from '../utils/format'
 import EmptyState from '../components/EmptyState'
 
 const { TextArea } = Input
 
 export default function Workspaces() {
-  const [list, setList] = useState<Workspace[]>([])
-  const [loading, setLoading] = useState(true)
+  const list = useWorkspaceStore((s) => s.list)
+  const loaded = useWorkspaceStore((s) => s.loaded)
+  const fetchList = useWorkspaceStore((s) => s.fetchList)
+  const mutate = useWorkspaceStore((s) => s.mutate)
+  const [loading, setLoading] = useState(!loaded)
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const navigate = useNavigate()
 
-  const load = async () => {
-    setLoading(true)
-    try {
-      setList(await api.listWorkspaces())
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    fetchList().finally(() => setLoading(false))
+  }, [fetchList])
 
   const handleCreate = async () => {
     if (!newName.trim()) return
@@ -34,7 +31,7 @@ export default function Workspaces() {
     setNewDesc('')
     setCreateOpen(false)
     message.success('工作空间已创建')
-    load()
+    await mutate()
   }
 
   const handleDelete = (ws: Workspace, e: React.MouseEvent) => {
@@ -48,7 +45,7 @@ export default function Workspaces() {
       onOk: async () => {
         await api.deleteWorkspace(ws.id)
         message.success('工作空间已删除')
-        load()
+        await mutate()
       },
     })
   }

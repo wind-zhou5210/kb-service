@@ -1,7 +1,9 @@
-import { Key } from 'react'
-import { Tree } from 'antd'
+import { Key, useEffect, useMemo, useState } from 'react'
+import { Tree, Input, Dropdown, message } from 'antd'
+import type { MenuProps } from 'antd'
 import { FileTextOutlined, Html5Outlined, FolderOutlined, FolderOpenOutlined, FileOutlined } from '@ant-design/icons'
 import type { WorkspaceTreeNode } from '../api/client'
+import { copyToClipboard } from '../utils/clipboard'
 
 interface Props {
   treeData: WorkspaceTreeNode[]
@@ -9,14 +11,16 @@ interface Props {
   onSelect: (path: string) => void
 }
 
-function toAntdTree(nodes: WorkspaceTreeNode[]): any[] {
+// 目录 key 使用完整路径，避免同名目录 key 冲突
+function toAntdTree(nodes: WorkspaceTreeNode[], parentPath = ''): any[] {
   return nodes.map(node => {
     if (node.type === 'directory') {
+      const dirPath = parentPath ? `${parentPath}/${node.name}` : node.name
       return {
-        key: `dir:${node.name}`,
+        key: `dir:${dirPath}`,
         title: node.name,
         icon: (props: any) => props.expanded ? <FolderOpenOutlined /> : <FolderOutlined />,
-        children: node.children ? toAntdTree(node.children) : [],
+        children: node.children ? toAntdTree(node.children, dirPath) : [],
         selectable: false,
       }
     }
@@ -36,7 +40,48 @@ function toAntdTree(nodes: WorkspaceTreeNode[]): any[] {
   })
 }
 
+// 按文件名过滤树，保留仍有匹配子节点的目录
+function filterTree(nodes: WorkspaceTreeNode[], q: string): WorkspaceTreeNode[] {
+  return nodes
+    .map(n => n.type === 'directory'
+      ? { ...n, children: filterTree(n.children ?? [], q) }
+      : n)
+    .filter(n => n.type === 'directory'
+      ? (n.children?.length ?? 0) > 0
+      : n.name.toLowerCase().includes(q))
+}
+
+function collectDirKeys(nodes: any[], acc: Key[] = []): Key[] {
+  for (const n of nodes) {
+    if (String(n.key).startsWith('dir:')) {
+      acc.push(n.key)
+      collectDirKeys(n.children ?? [], acc)
+    }
+  }
+  return acc
+}
+
 export default function WorkspaceTree({ treeData, selectedFile, onSelect }: Props) {
+  const [filter, setFilter] = useState('')
+  const [expandedKeys, setExpandedKeys] = useState<Key[]>(() => collectDirKeys(toAntdTree(treeData)))
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; path: string } | null>(null)
+
+  // treeData 变化时（如上传新文件后）展开新出现的目录
+  useEffect(() => {
+    const allKeys = collectDirKeys(toAntdTree(treeData))
+    setExpandedKeys(prev => {
+      const merged = new Set(prev)
+      for (const k of allKeys) merged.add(k)
+      return Array.from(merged)
+    })
+  }, [treeData])
+
+  const q = filter.trim().toLowerCase()
+  const filtered = useMemo(() => (q ? filterTree(treeData, q) : treeData), [treeData, q])
+  const antdData = useMemo(() => toAntdTree(filtered), [filtered])
+
+  // 过滤时展开全部匹配目录，否则使用受控展开状态
+  const effectiveExpanded = q ? collectDirKeys(antdData) : expandedKeys
   const selectedKeys: Key[] = selectedFile ? [`file:${selectedFile}`] : []
 
   const handleSelect = (keys: Key[]) => {
@@ -47,14 +92,61 @@ export default function WorkspaceTree({ treeData, selectedFile, onSelect }: Prop
     }
   }
 
+  const copyLink = async (path: string) => {
+    const ok = await copyToClipboard(`${window.location.origin}${window.location.pathname}?file=${encodeURIComponent(path)}`)
+    message[ok ? 'success' : 'warning'](ok ? '链接已复制' : '复制失败')
+  }
+
+  const menuItems: MenuProps['items'] = [
+    { key: 'copy', label: '复制链接' },
+    { key: 'rename', label: '重命名', disabled: true },
+    { key: 'move', label: '移动', disabled: true },
+    { key: 'delete', label: '删除', danger: true, disabled: true },
+  ]
+
   return (
-    <Tree
-      treeData={toAntdTree(treeData)}
-      selectedKeys={selectedKeys}
-      onSelect={handleSelect}
-      defaultExpandAll
-      showIcon
-      style={{ background: 'transparent' }}
-    />
+    <div style={{ outline: 'none' }}>
+      <Input.Search
+        placeholder="过滤文件…"
+        allowClear
+        size="small"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        style={{ marginBottom: 8, padding: '0 4px' }}
+      />
+      <Dropdown
+        open={!!ctxMenu}
+        onOpenChange={(o) => { if (!o) setCtxMenu(null) }}
+        trigger={['contextMenu']}
+        menu={{
+          items: menuItems,
+          onClick: ({ key }) => {
+            if (ctxMenu && key === 'copy') copyLink(ctxMenu.path)
+            setCtxMenu(null)
+          },
+        }}
+        overlayStyle={ctxMenu ? { position: 'fixed', left: ctxMenu.x, top: ctxMenu.y } : undefined}
+      >
+        <div>
+          <Tree
+            treeData={antdData}
+            selectedKeys={selectedKeys}
+            expandedKeys={effectiveExpanded}
+            onExpand={(keys) => { if (!q) setExpandedKeys(keys) }}
+            onSelect={handleSelect}
+            onRightClick={({ event, node }) => {
+              const key = String(node.key)
+              if (key.startsWith('file:')) {
+                event.preventDefault()
+                setCtxMenu({ x: event.clientX, y: event.clientY, path: key.slice(5) })
+              }
+            }}
+            showIcon
+            blockNode
+            style={{ background: 'transparent' }}
+          />
+        </div>
+      </Dropdown>
+    </div>
   )
 }

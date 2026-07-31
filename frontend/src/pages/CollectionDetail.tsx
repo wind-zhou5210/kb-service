@@ -22,6 +22,7 @@ import VersionHistoryModal from '../components/VersionHistoryModal'
 import EmptyState from '../components/EmptyState'
 import { formatSize, relativeTime } from '../utils/format'
 import { copyToClipboard } from '../utils/clipboard'
+import { useCollectionStore } from '../store/collection'
 
 const { TextArea } = Input
 
@@ -74,6 +75,8 @@ export default function CollectionDetail() {
   const [moveTarget, setMoveTarget] = useState<DocumentItem | null>(null)
   const [collections, setCollections] = useState<Collection[]>([])
   const [versionHistoryDoc, setVersionHistoryDoc] = useState<DocumentItem | null>(null)
+  // 面包屑：上报当前集合
+  const setCurrent = useCollectionStore((s) => s.setCurrent)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -92,12 +95,17 @@ export default function CollectionDetail() {
       const list = await api.listDocuments(colId)
       setDocs(list)
       const cols = await api.listCollections()
-      setCollection(cols.find((c) => c.id === colId) ?? null)
+      const col = cols.find((c) => c.id === colId) ?? null
+      setCollection(col)
+      setCurrent(col)
       return list
     } finally { setLoading(false) }
   }, [colId])
 
   useEffect(() => { loadDocs() }, [loadDocs])
+
+  // 卸载时清空面包屑的当前集合
+  useEffect(() => () => setCurrent(null), [setCurrent])
 
   const viewDoc = useCallback(async (doc: DocumentItem) => {
     setSelected(doc); setTocItems([]); setContentLoading(true)
