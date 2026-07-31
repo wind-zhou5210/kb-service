@@ -47,12 +47,6 @@
   --shadow: 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
-
-  /* ---- 状态变量：焦点环 / 禁用 / 弱分隔线 / 遮罩 ---- */
-  --focus-ring: rgba(79, 70, 229, 0.35);   /* 键盘焦点环，基于 --accent */
-  --disabled: #A1A1AA;                      /* 禁用态文字/图标 */
-  --divider: #F4F4F5;                       /* 弱分隔线（比 --border 更浅） */
-  --backdrop: rgba(0, 0, 0, 0.45);          /* Modal/Drawer 遮罩 */
 }
 
 * { box-sizing: border-box; }
@@ -107,9 +101,6 @@ body {
 
 @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
 .page-fade { animation: fade 0.2s var(--ease); }
-
-/* ---- 键盘焦点环（仅键盘导航可见，鼠标点击不触发） ---- */
-:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
 
 /* ---- 集合卡片：扁平 1px 边 ---- */
 .col-card {
@@ -413,11 +404,6 @@ body {
 
   --shadow: 0 1px 2px rgba(0,0,0,0.3);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
-
-  --focus-ring: rgba(129, 140, 248, 0.4);   /* 基于暗色 --accent #818CF8 */
-  --disabled: #52525B;
-  --divider: #1F1F23;
-  --backdrop: rgba(0, 0, 0, 0.65);
 }
 
 /* 暗色下 logo-mark 用强调色提升可见度 */
@@ -452,11 +438,4 @@ body {
 [data-theme="dark"] body {
   background: var(--bg);
   color: var(--ink-900);
-}
-
-/* ---- 触摸设备：44px 最小触摸目标（WCAG） ---- */
-@media (pointer: coarse) {
-  .doc-item { min-height: 44px; }
-  .ant-tree-treenode { min-height: 44px; align-items: center; }
-  .app-header button { min-width: 44px; min-height: 44px; }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Spin, Modal, Input, Skeleton, Space, Tag, message, Upload, Typography, Drawer } from 'antd'
-import { UploadOutlined, DownloadOutlined, ArrowLeftOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined } from '@ant-design/icons'
+import { Button, Spin, Modal, Input, Skeleton, Space, Tag, message, Upload, Typography } from 'antd'
+import { UploadOutlined, DownloadOutlined, ArrowLeftOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons'
 import { api, type Workspace, type WorkspaceTreeNode } from '../api/client'
 import { formatSize, relativeTime } from '../utils/format'
 import WorkspaceTree from '../components/WorkspaceTree'
@@ -9,8 +9,6 @@ import HtmlSandbox from '../components/HtmlSandbox'
 import MarkdownViewer from '../components/MarkdownViewer'
 import EmptyState from '../components/EmptyState'
 import { copyToClipboard } from '../utils/clipboard'
-import { useIsMobile } from '../hooks/useMediaQuery'
-import { useWorkspaceStore } from '../store/workspace'
 
 const { Dragger } = Upload
 const { TextArea } = Input
@@ -37,13 +35,8 @@ export default function WorkspaceDetail() {
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
-  // 侧栏收起状态：持久化到 localStorage，刷新后保持（仅桌面端）
+  // 侧栏收起状态：持久化到 localStorage，刷新后保持
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1')
-  // 移动端：目录树改为 Drawer 呈现
-  const isMobile = useIsMobile()
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  // 面包屑：上报当前工作空间
-  const setCurrent = useWorkspaceStore((s) => s.setCurrent)
 
   const toggleSidebar = () => {
     setCollapsed((c) => {
@@ -60,7 +53,6 @@ export default function WorkspaceDetail() {
         api.getWorkspaceTree(wsId),
       ])
       setWorkspace(ws)
-      setCurrent(ws)
       setTree(treeData)
       setShareToken(ws.share_token)
       // Auto-select first file if exists
@@ -72,9 +64,6 @@ export default function WorkspaceDetail() {
   }, [wsId])
 
   useEffect(() => { loadWorkspace() }, [loadWorkspace])
-
-  // 卸载时清空面包屑的当前空间
-  useEffect(() => () => setCurrent(null), [setCurrent])
 
   // Auto-refresh when navigate event fires from iframe
   useEffect(() => {
@@ -121,12 +110,6 @@ export default function WorkspaceDetail() {
 
   const handleInternalLink = (path: string) => {
     setSelectedFile(path)
-  }
-
-  // 目录树选中：移动端选中后自动关闭 Drawer
-  const handleSelectFile = (path: string) => {
-    setSelectedFile(path)
-    if (isMobile) setDrawerOpen(false)
   }
 
   // Upload
@@ -206,92 +189,54 @@ export default function WorkspaceDetail() {
   const isHtml = selectedFile?.endsWith('.html') ?? selectedFile?.endsWith('.htm') ?? false
   const servePrefix = `/api/workspaces/${wsId}/serve/`
 
-  // 侧栏内容：桌面端放 aside，移动端放 Drawer
-  const sidebarContent = (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: 14, borderBottom: '1px solid var(--subtle-border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-          <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/workspaces')} size="small" />
-          <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>返回</span>
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-900)', marginBottom: 4 }}>{workspace.name}</div>
-        {workspace.description && (
-          <div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 4 }}>{workspace.description}</div>
-        )}
-        <div style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginBottom: 10 }}>
-          {workspace.file_count} 个文件 · {formatSize(workspace.total_size)}
-        </div>
-        <Space>
-          <Button type="primary" size="small" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>上传</Button>
-          <Button size="small" icon={<DownloadOutlined />} disabled={!workspace.file_count} onClick={handleDownload}>下载</Button>
-          <Button size="small" icon={<ShareAltOutlined />} onClick={handleShare}>
-            {shareToken ? '分享' : '分享'}
-          </Button>
-          <Button size="small" icon={<DeleteOutlined />} onClick={handleDelete} danger />
-        </Space>
-      </div>
-      <div style={{ flex: 1, overflow: 'auto', padding: '8px 4px' }}>
-        <WorkspaceTree treeData={tree} selectedFile={selectedFile || undefined} onSelect={handleSelectFile} />
-      </div>
-    </div>
-  )
-
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 52px)', overflow: 'hidden', position: 'relative' }}>
-      {/* 桌面端左栏：目录树（可收起，宽度过渡动画） */}
-      {!isMobile && (
-        <aside style={{ width: collapsed ? 0 : 280, borderRight: collapsed ? 'none' : '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s var(--ease)' }}>
-          <div style={{ width: 280, height: '100%' }}>
-            {sidebarContent}
+      {/* 左栏：目录树（可收起，宽度过渡动画） */}
+      <aside style={{ width: collapsed ? 0 : 280, borderRight: collapsed ? 'none' : '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s var(--ease)' }}>
+        <div style={{ width: 280, height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: 14, borderBottom: '1px solid var(--subtle-border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/workspaces')} size="small" />
+            <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>返回</span>
           </div>
-        </aside>
-      )}
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-900)', marginBottom: 4 }}>{workspace.name}</div>
+          {workspace.description && (
+            <div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 4 }}>{workspace.description}</div>
+          )}
+          <div style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginBottom: 10 }}>
+            {workspace.file_count} 个文件 · {formatSize(workspace.total_size)}
+          </div>
+          <Space>
+            <Button type="primary" size="small" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>上传</Button>
+            <Button size="small" icon={<DownloadOutlined />} disabled={!workspace.file_count} onClick={handleDownload}>下载</Button>
+            <Button size="small" icon={<ShareAltOutlined />} onClick={handleShare}>
+              {shareToken ? '分享' : '分享'}
+            </Button>
+            <Button size="small" icon={<DeleteOutlined />} onClick={handleDelete} danger />
+          </Space>
+        </div>
+        <div style={{ flex: 1, overflow: 'auto', padding: '8px 4px' }}>
+          <WorkspaceTree treeData={tree} selectedFile={selectedFile || undefined} onSelect={setSelectedFile} />
+        </div>
+        </div>
+      </aside>
 
-      {/* 侧栏收起/展开按钮：悬浮于分界处，随侧栏平滑移动（仅桌面端） */}
-      {!isMobile && (
-        <Button
-          type="text"
-          size="small"
-          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          onClick={toggleSidebar}
-          title={collapsed ? '展开侧栏' : '收起侧栏'}
-          style={{
-            position: 'absolute', top: 8, left: collapsed ? 8 : 288, zIndex: 20,
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            transition: 'left 0.2s var(--ease)',
-          }}
-        />
-      )}
-
-      {/* 移动端：目录树 Drawer */}
-      {isMobile && (
-        <Drawer
-          title="目录"
-          placement="left"
-          width="80vw"
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          styles={{ body: { padding: 0 } }}
-        >
-          {sidebarContent}
-        </Drawer>
-      )}
+      {/* 侧栏收起/展开按钮：悬浮于分界处，随侧栏平滑移动 */}
+      <Button
+        type="text"
+        size="small"
+        icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+        onClick={toggleSidebar}
+        title={collapsed ? '展开侧栏' : '收起侧栏'}
+        style={{
+          position: 'absolute', top: 8, left: collapsed ? 8 : 288, zIndex: 20,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          transition: 'left 0.2s var(--ease)',
+        }}
+      />
 
       {/* 右栏：内容区 */}
       <main style={{ flex: 1, overflow: 'auto', background: 'var(--surface)' }}>
-        {/* 移动端顶部"目录"触发条 */}
-        {isMobile && (
-          <div style={{
-            position: 'sticky', top: 0, zIndex: 10, height: 48,
-            display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px',
-            borderBottom: '1px solid var(--border)', background: 'var(--surface)',
-          }}>
-            <Button type="text" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} aria-label="打开目录">目录</Button>
-            <span style={{ fontSize: 13, color: 'var(--ink-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {selectedFile ?? '未选择文件'}
-            </span>
-          </div>
-        )}
         {!selectedFile ? (
           <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
             <EmptyState icon={<FolderOutlined />} title="选择一个文件" description="从左侧目录树选择一个文件查看" />

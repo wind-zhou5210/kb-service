@@ -5,7 +5,6 @@ import { Button, Dropdown, Input, Tabs } from 'antd'
 import { LogoutOutlined, SearchOutlined, SunOutlined, MoonOutlined, FolderOutlined, BuildOutlined } from '@ant-design/icons'
 import { useAuth } from '../store/auth'
 import { useTheme } from '../store/theme'
-import Breadcrumbs from './Breadcrumbs'
 
 interface Props {
   children: React.ReactNode
@@ -50,9 +49,6 @@ export default function AppLayout({ children }: Props) {
           >
             工作空间
           </Button>
-        </div>
-        <div style={{ marginLeft: 12, display: 'flex', alignItems: 'center' }}>
-          <Breadcrumbs />
         </div>
         <Input
           allowClear
