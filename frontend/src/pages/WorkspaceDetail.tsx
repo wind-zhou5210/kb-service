@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Spin, Modal, Input, Skeleton, Space, Tag, message, Upload, Typography, Drawer } from 'antd'
-import { UploadOutlined, DownloadOutlined, ArrowLeftOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined } from '@ant-design/icons'
+import { Button, Modal, Input, Skeleton, Space, message, Upload, Drawer } from 'antd'
+import { UploadOutlined, DownloadOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined } from '@ant-design/icons'
 import { api, type Workspace, type WorkspaceTreeNode } from '../api/client'
 import { formatSize, relativeTime } from '../utils/format'
 import WorkspaceTree from '../components/WorkspaceTree'
 import HtmlSandbox from '../components/HtmlSandbox'
 import MarkdownViewer from '../components/MarkdownViewer'
 import EmptyState from '../components/EmptyState'
+import SubNav from '../components/SubNav'
 import { copyToClipboard } from '../utils/clipboard'
 import { useIsMobile } from '../hooks/useMediaQuery'
 import { useWorkspaceStore } from '../store/workspace'
@@ -191,12 +192,12 @@ export default function WorkspaceDetail() {
   }
 
   if (loading) {
-    return <div style={{ padding: 32 }}><Skeleton active paragraph={{ rows: 12 }} /></div>
+    return <div style={{ padding: 'var(--space-8)' }}><Skeleton active paragraph={{ rows: 12 }} /></div>
   }
 
   if (!workspace) {
     return (
-      <div style={{ padding: 40 }}>
+      <div style={{ padding: 'var(--space-12)' }}>
         <EmptyState icon={<FolderOutlined />} title="工作空间不存在" description="找不到该工作空间" actionText="返回列表" onAction={() => navigate('/workspaces')} />
       </div>
     )
@@ -209,19 +210,15 @@ export default function WorkspaceDetail() {
   // 侧栏内容：桌面端放 aside，移动端放 Drawer
   const sidebarContent = (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: 14, borderBottom: '1px solid var(--subtle-border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-          <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/workspaces')} size="small" />
-          <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>返回</span>
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-900)', marginBottom: 4 }}>{workspace.name}</div>
+      <div style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--subtle-border)' }}>
+        <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--ink-900)' }}>{workspace.name}</div>
         {workspace.description && (
-          <div style={{ fontSize: 12, color: 'var(--ink-500)', marginBottom: 4 }}>{workspace.description}</div>
+          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-500)', marginTop: 'var(--space-2)' }}>{workspace.description}</div>
         )}
-        <div style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginBottom: 10 }}>
+        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginTop: 'var(--space-2)' }}>
           {workspace.file_count} 个文件 · {formatSize(workspace.total_size)}
         </div>
-        <Space>
+        <Space style={{ marginTop: 'var(--space-3)' }}>
           <Button type="primary" size="small" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>上传</Button>
           <Button size="small" icon={<DownloadOutlined />} disabled={!workspace.file_count} onClick={handleDownload}>下载</Button>
           <Button size="small" icon={<ShareAltOutlined />} onClick={handleShare}>
@@ -230,37 +227,37 @@ export default function WorkspaceDetail() {
           <Button size="small" icon={<DeleteOutlined />} onClick={handleDelete} danger />
         </Space>
       </div>
-      <div style={{ flex: 1, overflow: 'auto', padding: '8px 4px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-2) var(--space-1)' }}>
         <WorkspaceTree treeData={tree} selectedFile={selectedFile || undefined} onSelect={handleSelectFile} />
       </div>
     </div>
   )
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 52px)', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      {/* 二级导航栏：面包屑 + 页面级操作 */}
+      <SubNav
+        actions={isMobile ? (
+          <Button type="text" size="small" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} aria-label="打开目录">目录</Button>
+        ) : (
+          <Button
+            type="text"
+            size="small"
+            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={toggleSidebar}
+            title={collapsed ? '展开侧栏' : '收起侧栏'}
+          />
+        )}
+      />
+
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
       {/* 桌面端左栏：目录树（可收起，宽度过渡动画） */}
       {!isMobile && (
-        <aside style={{ width: collapsed ? 0 : 280, borderRight: collapsed ? 'none' : '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s var(--ease)' }}>
-          <div style={{ width: 280, height: '100%' }}>
+        <aside style={{ width: collapsed ? 0 : 'var(--sidebar-w)', borderRight: collapsed ? 'none' : '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s var(--ease)' }}>
+          <div style={{ width: 'var(--sidebar-w)', height: '100%' }}>
             {sidebarContent}
           </div>
         </aside>
-      )}
-
-      {/* 侧栏收起/展开按钮：悬浮于分界处，随侧栏平滑移动（仅桌面端） */}
-      {!isMobile && (
-        <Button
-          type="text"
-          size="small"
-          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          onClick={toggleSidebar}
-          title={collapsed ? '展开侧栏' : '收起侧栏'}
-          style={{
-            position: 'absolute', top: 8, left: collapsed ? 8 : 288, zIndex: 20,
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            transition: 'left 0.2s var(--ease)',
-          }}
-        />
       )}
 
       {/* 移动端：目录树 Drawer */}
@@ -268,7 +265,7 @@ export default function WorkspaceDetail() {
         <Drawer
           title="目录"
           placement="left"
-          width="80vw"
+          width="min(320px, 85vw)"
           open={drawerOpen}
           onClose={() => setDrawerOpen(false)}
           styles={{ body: { padding: 0 } }}
@@ -279,25 +276,12 @@ export default function WorkspaceDetail() {
 
       {/* 右栏：内容区 */}
       <main style={{ flex: 1, overflow: 'auto', background: 'var(--surface)' }}>
-        {/* 移动端顶部"目录"触发条 */}
-        {isMobile && (
-          <div style={{
-            position: 'sticky', top: 0, zIndex: 10, height: 48,
-            display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px',
-            borderBottom: '1px solid var(--border)', background: 'var(--surface)',
-          }}>
-            <Button type="text" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} aria-label="打开目录">目录</Button>
-            <span style={{ fontSize: 13, color: 'var(--ink-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {selectedFile ?? '未选择文件'}
-            </span>
-          </div>
-        )}
         {!selectedFile ? (
           <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
             <EmptyState icon={<FolderOutlined />} title="选择一个文件" description="从左侧目录树选择一个文件查看" />
           </div>
         ) : contentLoading ? (
-          <div style={{ padding: 32, maxWidth: 760, margin: '0 auto' }}><Skeleton active paragraph={{ rows: 10 }} /></div>
+          <div style={{ padding: 'var(--space-8)', maxWidth: 760, margin: '0 auto' }}><Skeleton active paragraph={{ rows: 10 }} /></div>
         ) : isMd && mdContent ? (
           <MarkdownViewer
             content={mdContent}
@@ -309,11 +293,12 @@ export default function WorkspaceDetail() {
             <HtmlSandbox src={htmlSrc} fill />
           </div>
         ) : (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-400)' }}>
+          <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--ink-400)' }}>
             该文件类型暂不支持预览
           </div>
         )}
       </main>
+      </div>
 
       {/* 上传弹窗 */}
       <Modal title="上传工作空间" open={uploadOpen} onCancel={() => setUploadOpen(false)} footer={null}>

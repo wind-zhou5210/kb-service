@@ -38,7 +38,7 @@ export default function Search() {
   }
 
   return (
-    <div style={{ padding: '32px 24px', maxWidth: 860, margin: '0 auto' }}>
+    <div style={{ width: '100%', padding: '32px 24px', maxWidth: 860, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
         <ArrowLeftOutlined
           onClick={() => navigate('/')}

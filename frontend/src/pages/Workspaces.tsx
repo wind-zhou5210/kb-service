@@ -51,14 +51,12 @@ export default function Workspaces() {
   }
 
   return (
-    <div style={{ padding: '32px 24px', maxWidth: 1280, margin: '0 auto' }}>
+    <div className="page-container">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div className="page-header">
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: 'var(--ink-900)', letterSpacing: '-0.01em' }}>
-            工作空间
-          </h1>
-          <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 4, fontFamily: 'var(--mono)' }}>
+          <h1>工作空间</h1>
+          <div className="sub">
             {list.length} {list.length === 1 ? 'workspace' : 'workspaces'}
           </div>
         </div>
@@ -69,9 +67,9 @@ export default function Workspaces() {
 
       {/* Loading state */}
       {loading ? (
-        <Row gutter={[16, 16]}>
+        <Row gutter={[20, 20]}>
           {[1, 2, 3].map((i) => (
-            <Col xs={24} sm={12} md={8} key={i}>
+            <Col xs={24} sm={12} md={8} lg={8} xl={6} key={i}>
               <Card style={{ borderRadius: 8 }}>
                 <Skeleton active />
               </Card>
@@ -80,20 +78,23 @@ export default function Workspaces() {
         </Row>
       ) : list.length === 0 ? (
         /* Empty state */
-        <EmptyState
-          icon={<FolderOutlined />}
-          title="还没有工作空间"
-          description="创建一个工作空间来整理和管理你的文档"
-          actionText="新建工作空间"
-          onAction={() => setCreateOpen(true)}
-        />
+        <div style={{ minHeight: 'calc(100vh - var(--header-h) - 200px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <EmptyState
+            icon={<FolderOutlined />}
+            title="还没有工作空间"
+            description="创建一个工作空间来整理和管理你的文档"
+            actionText="新建工作空间"
+            onAction={() => setCreateOpen(true)}
+          />
+        </div>
       ) : (
         /* Workspace grid */
-        <Row gutter={[16, 16]}>
+        <Row gutter={[20, 20]}>
           {list.map((ws) => (
-            <Col xs={24} sm={12} md={8} key={ws.id}>
+            <Col xs={24} sm={12} md={8} lg={8} xl={6} key={ws.id}>
               <Card
                 hoverable
+                className="ws-card"
                 onClick={() => navigate(`/workspaces/${ws.id}`)}
                 style={{ borderRadius: 8 }}
                 actions={[
@@ -102,7 +103,7 @@ export default function Workspaces() {
                   </Tooltip>,
                 ]}
               >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
                   <div
                     style={{
                       width: 40,
@@ -135,9 +136,9 @@ export default function Workspaces() {
                     </div>
                     <div
                       style={{
-                        fontSize: 13,
+                        fontSize: 'var(--text-base)',
                         color: 'var(--ink-500)',
-                        marginTop: 2,
+                        marginTop: 'var(--space-1)',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
@@ -147,11 +148,11 @@ export default function Workspaces() {
                     </div>
                   </div>
                 </div>
-                <div style={{ marginTop: 12, display: 'flex', gap: 16, fontSize: 12, color: 'var(--ink-400)' }}>
+                <div style={{ marginTop: 'var(--space-3)', display: 'flex', gap: 'var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--ink-400)' }}>
                   <span>{ws.file_count} 个文件</span>
                   <span>{formatSize(ws.total_size)}</span>
                 </div>
-                <div style={{ marginTop: 2, fontSize: 12, color: 'var(--ink-300)' }}>
+                <div style={{ marginTop: 'var(--space-1)', fontSize: 'var(--text-sm)', color: 'var(--ink-300)' }}>
                   {relativeTime(ws.updated_at)}
                 </div>
               </Card>

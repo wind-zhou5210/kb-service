@@ -1,5 +1,4 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Breadcrumb } from 'antd'
 import { useWorkspaceStore } from '../store/workspace'
 import { useCollectionStore } from '../store/collection'
 import { useIsMobile } from '../hooks/useMediaQuery'
@@ -23,21 +22,47 @@ export default function Breadcrumbs() {
     if (path.startsWith('/workspaces/') && ws) crumbs.push({ title: ws.name })
   }
 
-  if (crumbs.length === 0) return null
+  // 根级列表页只有一段，与顶栏 Tab 重复，不渲染
+  if (crumbs.length <= 1) return null
 
   // 移动端仅显示最后两段
   if (isMobile && crumbs.length > 2) {
     crumbs = [{ title: '…' }, ...crumbs.slice(-2)]
   }
 
+  const segStyle: React.CSSProperties = {
+    maxWidth: '40vw',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  }
+
   return (
-    <Breadcrumb
-      style={{ fontSize: 13 }}
-      items={crumbs.map((c) => ({
-        title: c.onClick
-          ? <span style={{ cursor: 'pointer' }} onClick={c.onClick}>{c.title}</span>
-          : c.title,
-      }))}
-    />
+    <nav style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-base)' }}>
+      {crumbs.map((c, i) => {
+        const isLast = i === crumbs.length - 1
+        return (
+          <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            {i > 0 && <span style={{ color: 'var(--ink-300)' }}>/</span>}
+            {isLast ? (
+              <span style={{ ...segStyle, color: 'var(--ink-900)', fontWeight: 500 }}>{c.title}</span>
+            ) : (
+              <span
+                className="crumb-link"
+                onClick={c.onClick}
+                style={{
+                  ...segStyle,
+                  color: 'var(--ink-400)',
+                  cursor: c.onClick ? 'pointer' : 'default',
+                  transition: 'color 0.15s var(--ease)',
+                }}
+              >
+                {c.title}
+              </span>
+            )}
+          </span>
+        )
+      })}
+    </nav>
   )
 }

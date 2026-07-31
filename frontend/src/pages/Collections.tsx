@@ -6,7 +6,7 @@ import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { SortableContext, rectSortingStrategy, useSortable, horizontalListSortingStrategy } from '@dnd-kit/sortable'
+import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { api, type Collection } from '../api/client'
 import { useCollectionStore } from '../store/collection'
@@ -130,50 +130,54 @@ export default function Collections() {
   }
 
   return (
-    <div style={{ padding: '32px 24px', maxWidth: 1280, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+    <div className="page-container">
+      <div className="page-header">
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: 'var(--ink-900)', letterSpacing: '-0.01em' }}>
-            知识集合
-          </h1>
-          <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 4, fontFamily: 'var(--mono)' }}>
+          <h1>知识集合</h1>
+          <div className="sub">
             {list.length} {list.length === 1 ? 'collection' : 'collections'}
           </div>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
-          新建
-        </Button>
+        <div className="actions">
+          {list.length > 0 && (
+            <Input
+              allowClear
+              className="page-search"
+              prefix={<SearchOutlined style={{ color: 'var(--ink-300)' }} />}
+              placeholder="搜索集合..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ width: 260, borderRadius: 'var(--r-md)' }}
+            />
+          )}
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+            新建
+          </Button>
+        </div>
       </div>
-
-      {list.length > 0 && (
-        <Input
-          allowClear
-          prefix={<SearchOutlined style={{ color: 'var(--ink-300)' }} />}
-          placeholder="搜索集合..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: 320, marginBottom: 20, borderRadius: 6 }}
-        />
-      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 80 }}><Spin /></div>
       ) : list.length === 0 ? (
-        <EmptyState
-          icon={<FolderOutlined />}
-          title="还没有知识集合"
-          description="创建你的第一个集合，开始整理文档"
-          actionText="新建集合"
-          onAction={() => setCreateOpen(true)}
-        />
+        <div style={{ minHeight: 'calc(100vh - var(--header-h) - 200px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <EmptyState
+            icon={<FolderOutlined />}
+            title="还没有知识集合"
+            description="创建你的第一个集合，开始整理文档"
+            actionText="新建集合"
+            onAction={() => setCreateOpen(true)}
+          />
+        </div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon={<SearchOutlined />} title="未找到匹配的集合" />
+        <div style={{ minHeight: 'calc(100vh - var(--header-h) - 200px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <EmptyState icon={<SearchOutlined />} title="未找到匹配的集合" />
+        </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={filtered.map((c) => c.id)} strategy={rectSortingStrategy}>
-            <Row gutter={[16, 16]}>
+            <Row gutter={[20, 20]}>
               {filtered.map((c) => (
-                <Col xs={24} sm={12} md={8} lg={6} key={c.id}>
+                <Col xs={24} sm={12} md={8} lg={8} xl={6} key={c.id}>
                   <SortableCard
                     col={c}
                     onEdit={handleEdit}
