@@ -9,6 +9,10 @@ interface Props {
   treeData: WorkspaceTreeNode[]
   selectedFile?: string
   onSelect: (path: string) => void
+  /** 传入后右键菜单启用「替换文件」（分享页不传，保持只读） */
+  onReplaceFile?: (path: string) => void
+  /** 传入后右键菜单启用「删除」（分享页不传，保持只读） */
+  onDeleteFile?: (path: string) => void
 }
 
 // 目录 key 使用完整路径，避免同名目录 key 冲突
@@ -61,7 +65,7 @@ function collectDirKeys(nodes: any[], acc: Key[] = []): Key[] {
   return acc
 }
 
-export default function WorkspaceTree({ treeData, selectedFile, onSelect }: Props) {
+export default function WorkspaceTree({ treeData, selectedFile, onSelect, onReplaceFile, onDeleteFile }: Props) {
   const [filter, setFilter] = useState('')
   const [expandedKeys, setExpandedKeys] = useState<Key[]>(() => collectDirKeys(toAntdTree(treeData)))
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; path: string } | null>(null)
@@ -99,9 +103,12 @@ export default function WorkspaceTree({ treeData, selectedFile, onSelect }: Prop
 
   const menuItems: MenuProps['items'] = [
     { key: 'copy', label: '复制链接' },
+    ...(onReplaceFile ? [{ key: 'replace', label: '替换文件' }] : []),
     { key: 'rename', label: '重命名', disabled: true },
     { key: 'move', label: '移动', disabled: true },
-    { key: 'delete', label: '删除', danger: true, disabled: true },
+    onDeleteFile
+      ? { key: 'delete', label: '删除', danger: true }
+      : { key: 'delete', label: '删除', danger: true, disabled: true },
   ]
 
   return (
@@ -121,7 +128,11 @@ export default function WorkspaceTree({ treeData, selectedFile, onSelect }: Prop
         menu={{
           items: menuItems,
           onClick: ({ key }) => {
-            if (ctxMenu && key === 'copy') copyLink(ctxMenu.path)
+            if (ctxMenu) {
+              if (key === 'copy') copyLink(ctxMenu.path)
+              else if (key === 'replace') onReplaceFile?.(ctxMenu.path)
+              else if (key === 'delete') onDeleteFile?.(ctxMenu.path)
+            }
             setCtxMenu(null)
           },
         }}

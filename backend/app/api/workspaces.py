@@ -172,11 +172,13 @@ async def get_shared_workspace(
     )).scalars().first()
     if not ws:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "分享不存在或已失效")
-    fc_stmt = select(func.count(WorkspaceFile.id)).where(
-        WorkspaceFile.workspace_id == ws.id
-    )
-    fc = (await session.execute(fc_stmt)).scalar()
-    return {**ws.model_dump(), "file_count": fc}
+    stats = (await session.execute(
+        select(
+            func.count(WorkspaceFile.id).label("file_count"),
+            func.coalesce(func.sum(WorkspaceFile.size), 0).label("total_size"),
+        ).where(WorkspaceFile.workspace_id == ws.id)
+    )).one()
+    return {**ws.model_dump(), "file_count": stats[0], "total_size": stats[1]}
 
 
 @router.get("/share/{token}/tree")
@@ -440,6 +442,146 @@ async def upload_workspace_zip(
     await session.commit()
 
     return {"count": len(records)}
+
+
+@router.post("/{ws_id}/files")
+async def upsert_workspace_file(
+    ws_id: int,
+    file: UploadFile,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: CurrentUser,
+    path: str = Query(...),
+):
+    """单文件上传/替换（增量更新）。
+
+    按 path 定位工作空间内文件：不存在则新建，存在且内容变化则覆盖，
+    sha1 相同则跳过写盘与 DB 更新。内容更新不影响分享链接（不修改 share_token）。
+    """
+    ws = await session.get(Workspace, ws_id)
+    if not ws:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "工作空间不存在")
+
+    content = await file.read()
+    max_bytes = settings.workspace_max_upload_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"文件过大（上限 {settings.workspace_max_upload_mb}MB）",
+        )
+
+    # 路径校验：防穿越、跳过规则、禁止扩展名
+    norm_path = os.path.normpath(path)
+    if norm_path in ("", "."):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路径")
+    if norm_path.startswith("..") or os.path.isabs(norm_path):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路径")
+    if _should_skip(path) or _is_blocked_ext(path):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "不允许的文件类型或路径")
+    full_path = _safe_join(ws.storage_path, norm_path)
+
+    # 统一存储路径与元数据
+    rel_path = norm_path.replace("\\", "/")
+    sha1 = hashlib.sha1(content).hexdigest()
+    mime_type = _get_mime_type(rel_path)
+    ext = os.path.splitext(rel_path)[1].lower()
+    is_asset = ext not in (".md", ".html", ".htm")
+
+    record = (await session.execute(
+        select(WorkspaceFile).where(
+            WorkspaceFile.workspace_id == ws_id,
+            WorkspaceFile.path == rel_path,
+        )
+    )).scalars().first()
+
+    if record and record.sha1 == sha1 and os.path.isfile(full_path):
+        # 内容未变化且磁盘文件存在：不写盘、不更新 DB
+        return {
+            "status": "unchanged",
+            "path": rel_path,
+            "sha1": sha1,
+            "size": len(content),
+        }
+
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    with open(full_path, "wb") as f:
+        f.write(content)
+
+    if record:
+        record.sha1 = sha1
+        record.size = len(content)
+        record.mime_type = mime_type
+        result_status = "updated"
+    else:
+        session.add(WorkspaceFile(
+            workspace_id=ws_id,
+            path=rel_path,
+            sha1=sha1,
+            size=len(content),
+            mime_type=mime_type,
+            is_asset=is_asset,
+        ))
+        result_status = "created"
+
+    ws.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    return {
+        "status": result_status,
+        "path": rel_path,
+        "sha1": sha1,
+        "size": len(content),
+    }
+
+
+@router.delete("/{ws_id}/files", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_workspace_file(
+    ws_id: int,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: CurrentUser,
+    path: str = Query(...),
+):
+    """单文件删除（增量更新）。
+
+    删除磁盘文件与 DB 记录，并逐级清理变空的父目录。
+    内容更新不影响分享链接（不修改 share_token）。
+    """
+    ws = await session.get(Workspace, ws_id)
+    if not ws:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "工作空间不存在")
+
+    norm_path = os.path.normpath(path)
+    if norm_path in ("", "."):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路径")
+    if norm_path.startswith("..") or os.path.isabs(norm_path):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路径")
+    rel_path = norm_path.replace("\\", "/")
+
+    record = (await session.execute(
+        select(WorkspaceFile).where(
+            WorkspaceFile.workspace_id == ws_id,
+            WorkspaceFile.path == rel_path,
+        )
+    )).scalars().first()
+    if not record:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
+
+    full_path = _safe_join(ws.storage_path, norm_path)
+    if os.path.isfile(full_path):
+        os.unlink(full_path)
+
+    # 逐级向上清理变空的父目录（到工作空间根目录为止，异常时静默停止）
+    base_norm = os.path.normpath(ws.storage_path)
+    parent = os.path.dirname(full_path)
+    try:
+        while os.path.normpath(parent) != base_norm and not os.listdir(parent):
+            os.rmdir(parent)
+            parent = os.path.dirname(parent)
+    except OSError:
+        pass
+
+    await session.delete(record)
+    ws.updated_at = datetime.now(timezone.utc)
+    await session.commit()
 
 
 @router.get("/{ws_id}/tree")

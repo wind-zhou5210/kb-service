@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Modal, Input, Skeleton, Space, message, Upload, Drawer } from 'antd'
-import { UploadOutlined, DownloadOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined } from '@ant-design/icons'
+import { Button, Modal, Input, Skeleton, Space, message, Upload, Drawer, Tooltip } from 'antd'
+import { UploadOutlined, DownloadOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined, FileAddOutlined } from '@ant-design/icons'
 import { api, type Workspace, type WorkspaceTreeNode } from '../api/client'
 import { formatSize, relativeTime } from '../utils/format'
 import WorkspaceTree from '../components/WorkspaceTree'
@@ -38,6 +38,18 @@ export default function WorkspaceDetail() {
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
+  // 添加单个文件：弹窗状态
+  const [addFileOpen, setAddFileOpen] = useState(false)
+  const [addFilePath, setAddFilePath] = useState('')
+  const [addFile, setAddFile] = useState<File | null>(null)
+  const [addFileUploading, setAddFileUploading] = useState(false)
+  // 替换文件：隐藏 input 与目标路径
+  const replaceInputRef = useRef<HTMLInputElement>(null)
+  const replacePathRef = useRef<string | null>(null)
+  // 预览强制重载版本号：递增后触发同路径内容重新加载
+  const [viewerVersion, setViewerVersion] = useState(0)
+  // 同步跟踪最新 selectedFile，供异步回调里安全判断（避免闭包旧快照竞态）
+  const selectedFileRef = useRef<string | null>(null)
   // 侧栏收起状态：持久化到 localStorage，刷新后保持（仅桌面端）
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1')
   // 移动端：目录树改为 Drawer 呈现
@@ -94,8 +106,9 @@ export default function WorkspaceDetail() {
     return () => window.removeEventListener('ws-navigate', handler as EventListener)
   }, [wsId])
 
-  // Load file content when selectedFile changes
+  // Load file content when selectedFile changes（viewerVersion 变化时同路径强制重载）
   useEffect(() => {
+    selectedFileRef.current = selectedFile
     if (!selectedFile) { setMdContent(''); setHtmlSrc(''); return }
     const isMd = selectedFile.endsWith('.md')
     const isHtml = selectedFile.endsWith('.html') || selectedFile.endsWith('.htm')
@@ -113,12 +126,12 @@ export default function WorkspaceDetail() {
         .then(text => { setMdContent(text); setHtmlSrc('') })
         .finally(() => setContentLoading(false))
     } else {
-      // HTML: set iframe src with JWT
-      setHtmlSrc(`/api/workspaces/${wsId}/serve/${selectedFile}?jwt=${encodeURIComponent(token)}`)
+      // HTML: set iframe src with JWT（附 v 参数，替换后同路径也能重新加载 iframe）
+      setHtmlSrc(`/api/workspaces/${wsId}/serve/${selectedFile}?jwt=${encodeURIComponent(token)}&v=${viewerVersion}`)
       setMdContent('')
       setContentLoading(false)
     }
-  }, [selectedFile, wsId])
+  }, [selectedFile, wsId, viewerVersion])
 
   const handleInternalLink = (path: string) => {
     setSelectedFile(path)
@@ -141,6 +154,68 @@ export default function WorkspaceDetail() {
     } catch (e: any) {
       message.error(e.response?.data?.detail || '上传失败')
     } finally { setUploading(false) }
+  }
+
+  // 替换文件：右键菜单触发，记下目标路径后唤起文件选择
+  const handleReplaceFile = (path: string) => {
+    replacePathRef.current = path
+    replaceInputRef.current?.click()
+  }
+
+  const handleReplaceInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // 允许下次选择同一文件
+    const path = replacePathRef.current
+    if (!file || !path) return
+    try {
+      await api.uploadWorkspaceFile(wsId, path, file)
+      message.success('替换成功')
+      loadWorkspace()
+      // 若替换的是当前预览文件，递增版本号强制重新加载内容
+      // 用 ref 读最新选中路径，避免上传期间用户已切换文件时被闭包旧快照误覆盖
+      if (selectedFileRef.current === path) {
+        setViewerVersion(v => v + 1)
+      }
+    } catch (err: any) {
+      message.error(err.response?.data?.detail || '替换失败')
+    }
+  }
+
+  // 删除单个文件
+  const handleDeleteFile = (path: string) => {
+    Modal.confirm({
+      title: '删除文件',
+      content: `确认删除「${path}」？此操作不可撤销。`,
+      okType: 'danger',
+      okText: '删除',
+      onOk: async () => {
+        try {
+          await api.deleteWorkspaceFile(wsId, path)
+          message.success('已删除')
+          if (selectedFile === path) setSelectedFile(null)
+          loadWorkspace()
+        } catch (err: any) {
+          message.error(err.response?.data?.detail || '删除失败')
+        }
+      },
+    })
+  }
+
+  // 添加单个文件
+  const handleAddFile = async () => {
+    const path = addFilePath.trim()
+    if (!path || !addFile) { message.warning('请填写目标路径并选择文件'); return }
+    setAddFileUploading(true)
+    try {
+      await api.uploadWorkspaceFile(wsId, path, addFile)
+      message.success('添加成功')
+      setAddFileOpen(false)
+      setAddFilePath('')
+      setAddFile(null)
+      loadWorkspace()
+    } catch (err: any) {
+      message.error(err.response?.data?.detail || '添加失败')
+    } finally { setAddFileUploading(false) }
   }
 
   // Download：<a> 触发浏览器原生下载（进度/取消由浏览器接管，不占页面内存）
@@ -180,7 +255,7 @@ export default function WorkspaceDetail() {
   const handleDelete = () => {
     Modal.confirm({
       title: '删除工作空间',
-      content: `确认删除「${workspace?.name}」？此操作不可撤销，磁盘文件将被一并删除。`,
+      content: `确认删除「${workspace?.name}」？此操作不可撤销，磁盘文件将被一并删除，删除后分享链接将失效。`,
       okType: 'danger',
       okText: '删除',
       onOk: async () => {
@@ -218,17 +293,24 @@ export default function WorkspaceDetail() {
         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginTop: 'var(--space-2)' }}>
           {workspace.file_count} 个文件 · {formatSize(workspace.total_size)}
         </div>
-        <Space style={{ marginTop: 'var(--space-3)' }}>
+        <Space style={{ marginTop: 'var(--space-3)' }} size={4}>
           <Button type="primary" size="small" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>上传</Button>
-          <Button size="small" icon={<DownloadOutlined />} disabled={!workspace.file_count} onClick={handleDownload}>下载</Button>
-          <Button size="small" icon={<ShareAltOutlined />} onClick={handleShare}>
-            {shareToken ? '分享' : '分享'}
-          </Button>
-          <Button size="small" icon={<DeleteOutlined />} onClick={handleDelete} danger />
+          <Tooltip title="下载">
+            <Button size="small" icon={<DownloadOutlined />} disabled={!workspace.file_count} onClick={handleDownload} />
+          </Tooltip>
+          <Tooltip title="分享">
+            <Button size="small" icon={<ShareAltOutlined />} onClick={handleShare} />
+          </Tooltip>
+          <Tooltip title="添加文件">
+            <Button size="small" icon={<FileAddOutlined />} onClick={() => { setAddFilePath(''); setAddFile(null); setAddFileOpen(true) }} />
+          </Tooltip>
+          <Tooltip title="删除工作空间">
+            <Button size="small" icon={<DeleteOutlined />} onClick={handleDelete} danger />
+          </Tooltip>
         </Space>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-2) var(--space-1)' }}>
-        <WorkspaceTree treeData={tree} selectedFile={selectedFile || undefined} onSelect={handleSelectFile} />
+        <WorkspaceTree treeData={tree} selectedFile={selectedFile || undefined} onSelect={handleSelectFile} onReplaceFile={handleReplaceFile} onDeleteFile={handleDeleteFile} />
       </div>
     </div>
   )
@@ -315,6 +397,35 @@ export default function WorkspaceDetail() {
           <p style={{ fontSize: 14, fontWeight: 500 }}>点击或拖拽 .zip 文件</p>
           <p style={{ fontSize: 12, color: 'var(--ink-400)' }}>将包含所有文件及目录结构的 zip 包上传</p>
         </Dragger>
+        <p style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 12, marginBottom: 0 }}>
+          更新工作空间内容不会影响已生成的分享链接。
+        </p>
+      </Modal>
+
+      {/* 添加文件弹窗 */}
+      <Modal title="添加文件" open={addFileOpen} onCancel={() => setAddFileOpen(false)}
+        onOk={handleAddFile} okText="添加" confirmLoading={addFileUploading}
+      >
+        <Input
+          placeholder="目标路径，如 docs/guide.md"
+          value={addFilePath}
+          onChange={(e) => setAddFilePath(e.target.value)}
+          style={{ marginBottom: 12 }}
+        />
+        <Dragger
+          multiple={false}
+          beforeUpload={(file) => {
+            setAddFile(file)
+            // 路径为空时自动填入文件名
+            setAddFilePath((prev) => prev.trim() ? prev : file.name)
+            return Upload.LIST_IGNORE
+          }}
+          showUploadList={false}
+        >
+          <p className="ant-upload-drag-icon"><InboxOutlined style={{ fontSize: 40, color: 'var(--accent)' }} /></p>
+          <p style={{ fontSize: 14, fontWeight: 500 }}>{addFile ? `已选择：${addFile.name}` : '点击或拖拽选择文件'}</p>
+          <p style={{ fontSize: 12, color: 'var(--ink-400)' }}>单个文件上传至目标路径，已存在时将被替换</p>
+        </Dragger>
       </Modal>
 
       {/* 分享弹窗 */}
@@ -330,12 +441,18 @@ export default function WorkspaceDetail() {
             <p style={{ fontSize: 13, color: 'var(--ink-500)', marginBottom: 12 }}>
               任何人都可以通过此链接查看该工作空间（无需登录）。
             </p>
+            <p style={{ fontSize: 12, color: 'var(--ink-400)', marginBottom: 12 }}>
+              更新工作空间内容不会影响已生成的分享链接。
+            </p>
             <Input.Search value={shareUrl} readOnly enterButton="复制" onSearch={copyShareUrl} />
           </>
         ) : (
           <p>正在生成分享链接...</p>
         )}
       </Modal>
+
+      {/* 替换文件：隐藏文件选择器 */}
+      <input type="file" ref={replaceInputRef} style={{ display: 'none' }} onChange={handleReplaceInputChange} />
     </div>
   )
 }
