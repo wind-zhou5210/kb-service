@@ -1,7 +1,7 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Row, Col, Button, Input, Modal, Spin, message } from 'antd'
-import { PlusOutlined, SearchOutlined, FolderOutlined } from '@ant-design/icons'
+import { PlusOutlined, SearchOutlined, FolderOutlined, FileTextOutlined, Html5Outlined, FileOutlined } from '@ant-design/icons'
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -13,6 +13,8 @@ import { useCollectionStore } from '../store/collection'
 import CollectionCard from '../components/CollectionCard'
 import EmptyState from '../components/EmptyState'
 import { copyToClipboard } from '../utils/clipboard'
+import { getRecent, type RecentDoc } from '../utils/recent'
+import { relativeTime } from '../utils/format'
 
 const { TextArea } = Input
 
@@ -61,11 +63,20 @@ export default function Collections() {
   const [shareModal, setShareModal] = useState<Collection | null>(null)
   const [shareUrl, setShareUrl] = useState('')
   const [search, setSearch] = useState('')
+  const [recent, setRecent] = useState<RecentDoc[]>(() => getRecent())
   const navigate = useNavigate()
+
+  // P2-5 拖拽排序：防抖批量保存 + 可撤销
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // M-1：卸载时清掉未触发的防抖 timer，避免切页后仍发请求/弹 toast
+  useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }, [])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  useEffect(() => { fetchList().finally(() => setLoading(false)) }, [fetchList])
+  useEffect(() => {
+    setRecent(getRecent())
+    fetchList().finally(() => setLoading(false))
+  }, [fetchList])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return list
@@ -107,20 +118,43 @@ export default function Collections() {
     await mutate()
   }
 
-  const handleDragEnd = async (e: DragEndEvent) => {
+  const persistOrder = async (ordered: Collection[]) => {
+    await Promise.all(ordered.map((c, i) => api.updateCollection(c.id, { sort_order: i })))
+  }
+
+  const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e
     if (!over || active.id === over.id) return
     const oldIndex = list.findIndex((c) => c.id === active.id)
     const newIndex = list.findIndex((c) => c.id === over.id)
     if (oldIndex < 0 || newIndex < 0) return
+    const prev = [...list]
     const reordered = [...list]
     const [moved] = reordered.splice(oldIndex, 1)
     reordered.splice(newIndex, 0, moved)
     useCollectionStore.setState({ list: reordered })
-    await Promise.all(
-      reordered.map((c, i) => api.updateCollection(c.id, { sort_order: i }))
-    )
-    await mutate()
+
+    // 防抖：停止拖拽 600ms 后再批量持久化，避免逐项请求风暴
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    message.loading({ content: '保存排序中…', key: 'sort-save', duration: 0 })
+
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        await persistOrder(reordered)
+        message.success({
+          content: '排序已保存',
+          key: 'sort-save',
+          onClick: () => {
+            useCollectionStore.setState({ list: prev })
+            persistOrder(prev)
+          },
+        })
+        await mutate()
+      } catch {
+        message.error({ content: '保存排序失败，已恢复原顺序', key: 'sort-save' })
+        useCollectionStore.setState({ list: prev })
+      }
+    }, 600)
   }
 
   const copyShareUrl = async () => {
@@ -129,13 +163,24 @@ export default function Collections() {
     else message.warning('复制失败，请手动选中链接复制')
   }
 
+  // 最近阅读「继续」：跳回集合文档 / 工作空间文件
+  const goRecent = (r: RecentDoc) => {
+    if (r.kind === 'collection') {
+      navigate(`/collections/${r.sourceId}?doc=${r.id}`)
+    } else {
+      navigate(`/workspaces/${r.sourceId}?file=${encodeURIComponent(String(r.id))}`)
+    }
+  }
+
   return (
-    <div className="page-container">
+    <div className="paper-grid" style={{ flex: 1, minHeight: '100%' }}>
+      <div className="page-container">
       <div className="page-header">
         <div>
           <h1>知识集合</h1>
+          <div className="hint">按主题整理单份文档（.md / .html），拖拽卡片可调整顺序</div>
           <div className="sub">
-            {list.length} {list.length === 1 ? 'collection' : 'collections'}
+            {list.length} 个集合
           </div>
         </div>
         <div className="actions">
@@ -155,6 +200,36 @@ export default function Collections() {
           </Button>
         </div>
       </div>
+
+      {/* 知识入口：最近阅读（localStorage 记录，点击继续阅读） */}
+      {!loading && !search && recent.length > 0 && (
+        <div style={{ marginBottom: 'var(--space-6)' }}>
+          <div className="section-title">
+            <span className="name">最近阅读</span>
+            <span className="spec">CONTINUE READING</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {recent.map((r) => {
+              const isMd = r.ext === '.md'
+              const isHtml = r.ext === '.html' || r.ext === '.htm'
+              return (
+                <div key={`${r.kind}:${r.id}`} className="recent-item" onClick={() => goRecent(r)}>
+                  <span
+                    style={{
+                      color: isMd ? 'var(--md-color)' : isHtml ? 'var(--html-color)' : 'var(--ink-400)',
+                      fontSize: 14, flexShrink: 0, display: 'inline-flex',
+                    }}
+                  >
+                    {isMd ? <FileTextOutlined /> : isHtml ? <Html5Outlined /> : <FileOutlined />}
+                  </span>
+                  <span className="recent-title">{r.title}</span>
+                  <span className="recent-meta">{r.sourceName} · {relativeTime(new Date(r.viewedAt).toISOString())}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 80 }}><Spin /></div>
@@ -233,6 +308,7 @@ export default function Collections() {
           </Input.Group>
         </div>
       </Modal>
+      </div>
     </div>
   )
 }

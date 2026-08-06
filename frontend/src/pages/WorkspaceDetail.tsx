@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Modal, Input, Skeleton, Space, message, Upload, Drawer, Tooltip } from 'antd'
-import { UploadOutlined, DownloadOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined, FileAddOutlined } from '@ant-design/icons'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { Button, Modal, Input, Skeleton, Space, message, Upload, Drawer, Tooltip, Dropdown } from 'antd'
+import { UploadOutlined, DownloadOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined, FileAddOutlined, MoreOutlined } from '@ant-design/icons'
 import { api, type Workspace, type WorkspaceTreeNode } from '../api/client'
 import { formatSize, relativeTime } from '../utils/format'
+import { trackRecent, updateRecentScroll, getRecent } from '../utils/recent'
 import WorkspaceTree from '../components/WorkspaceTree'
 import HtmlSandbox from '../components/HtmlSandbox'
 import MarkdownViewer from '../components/MarkdownViewer'
@@ -22,6 +23,7 @@ export default function WorkspaceDetail() {
   const { id } = useParams<{ id: string }>()
   const wsId = Number(id)
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [tree, setTree] = useState<WorkspaceTreeNode[]>([])
@@ -76,13 +78,17 @@ export default function WorkspaceDetail() {
       setCurrent(ws)
       setTree(treeData)
       setShareToken(ws.share_token)
-      // Auto-select first file if exists
-      if (!selectedFile && treeData.length > 0) {
+      // 深链：?file= 命中即选中并消费（清理参数，避免后续 reload 拽回）；否则仅首次加载自动选第一个
+      const fileParam = searchParams.get('file')
+      if (fileParam && hasFile(treeData, fileParam)) {
+        setSearchParams({}, { replace: true })
+        setSelectedFile(fileParam)
+      } else if (!selectedFileRef.current && treeData.length > 0) {
         const first = findFirstFile(treeData)
         if (first) setSelectedFile(first)
       }
     } finally { setLoading(false) }
-  }, [wsId])
+  }, [wsId, searchParams])
 
   useEffect(() => { loadWorkspace() }, [loadWorkspace])
 
@@ -132,6 +138,54 @@ export default function WorkspaceDetail() {
       setContentLoading(false)
     }
   }, [selectedFile, wsId, viewerVersion])
+
+  // 最近阅读埋点：工作空间文件
+  useEffect(() => {
+    if (!selectedFile || !workspace) return
+    const base = selectedFile.split('/').pop() || selectedFile
+    const dot = base.lastIndexOf('.')
+    trackRecent({
+      id: selectedFile,
+      kind: 'workspace',
+      title: base,
+      ext: dot > 0 ? base.slice(dot) : null,
+      sourceId: workspace.id,
+      sourceName: workspace.name,
+    })
+  }, [selectedFile, workspace])
+
+  // 阅读体验：进度条 + 切换文件回到顶部 + 滚动位置记忆
+  const mainRef = useRef<HTMLElement>(null)
+  const [readProgress, setReadProgress] = useState(0)
+  const scrollRatioRef = useRef(0)
+  const updateProgress = useCallback(() => {
+    const el = mainRef.current
+    if (!el) return
+    const max = el.scrollHeight - el.clientHeight
+    setReadProgress(max <= 0 ? 100 : Math.min(100, Math.round((el.scrollTop / max) * 100)))
+    scrollRatioRef.current = max <= 0 ? 0 : Math.min(1, el.scrollTop / max)
+  }, [])
+  useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTo({ top: 0 })
+  }, [selectedFile])
+  useEffect(() => { updateProgress() }, [mdContent, htmlSrc, updateProgress])
+  // P1-5：离开文件时记录滚动比例
+  useEffect(() => {
+    const prev = selectedFile
+    return () => {
+      if (prev) updateRecentScroll('workspace', prev, scrollRatioRef.current)
+    }
+  }, [selectedFile])
+  // P1-5：继续阅读 —— 内容加载后恢复位置
+  useEffect(() => {
+    if (!selectedFile || contentLoading) return
+    const rec = getRecent().find((r) => r.kind === 'workspace' && r.id === selectedFile)
+    if (rec?.scrollRatio && mainRef.current) {
+      const el = mainRef.current
+      const top = rec.scrollRatio * (el.scrollHeight - el.clientHeight)
+      if (top > 0) el.scrollTo({ top })
+    }
+  }, [selectedFile, mdContent, htmlSrc, contentLoading])
 
   const handleInternalLink = (path: string) => {
     setSelectedFile(path)
@@ -243,12 +297,23 @@ export default function WorkspaceDetail() {
     else message.warning('复制失败')
   }
 
-  const revokeShare = async () => {
-    try {
-      await api.revokeWorkspaceShare(wsId)
-      setShareToken(null)
-      message.success('已取消分享')
-    } catch { message.error('取消失败') }
+  // P0-1：取消分享是高风险不可逆操作，必须先确认（与集合/文档分享行为一致）
+  const revokeShare = () => {
+    Modal.confirm({
+      title: '取消分享',
+      content: '取消后，已分享的链接将立即失效，所有访问者将无法再查看该工作空间。确认取消？',
+      okType: 'danger',
+      okText: '取消分享',
+      cancelText: '保留',
+      onOk: async () => {
+        try {
+          await api.revokeWorkspaceShare(wsId)
+          setShareToken(null)
+          message.success('已取消分享')
+          setShareModalOpen(false)
+        } catch { message.error('取消失败') }
+      },
+    })
   }
 
   // Delete
@@ -293,19 +358,24 @@ export default function WorkspaceDetail() {
         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--ink-400)', fontFamily: 'var(--mono)', marginTop: 'var(--space-2)' }}>
           {workspace.file_count} 个文件 · {formatSize(workspace.total_size)}
         </div>
+        {/* P1-4：主按钮 + 更多下拉 + 删除分隔（避免 5 连图标簇） */}
         <Space style={{ marginTop: 'var(--space-3)' }} size={4}>
           <Button type="primary" size="small" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>上传</Button>
-          <Tooltip title="下载">
-            <Button size="small" icon={<DownloadOutlined />} disabled={!workspace.file_count} onClick={handleDownload} />
-          </Tooltip>
-          <Tooltip title="分享">
-            <Button size="small" icon={<ShareAltOutlined />} onClick={handleShare} />
-          </Tooltip>
-          <Tooltip title="添加文件">
-            <Button size="small" icon={<FileAddOutlined />} onClick={() => { setAddFilePath(''); setAddFile(null); setAddFileOpen(true) }} />
-          </Tooltip>
+          <Dropdown
+            menu={{
+              items: [
+                { key: 'download', label: '下载', icon: <DownloadOutlined />, disabled: !workspace.file_count, onClick: handleDownload },
+                { key: 'share', label: '分享', icon: <ShareAltOutlined />, onClick: handleShare },
+                { key: 'addfile', label: '添加文件', icon: <FileAddOutlined />, onClick: () => { setAddFilePath(''); setAddFile(null); setAddFileOpen(true) } },
+              ],
+            }}
+            trigger={['click']}
+          >
+            <Button size="small" icon={<MoreOutlined />} aria-label="更多操作" />
+          </Dropdown>
+          <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
           <Tooltip title="删除工作空间">
-            <Button size="small" icon={<DeleteOutlined />} onClick={handleDelete} danger />
+            <Button size="small" icon={<DeleteOutlined />} onClick={handleDelete} danger aria-label="删除工作空间" />
           </Tooltip>
         </Space>
       </div>
@@ -333,10 +403,10 @@ export default function WorkspaceDetail() {
       />
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-      {/* 桌面端左栏：目录树（可收起，宽度过渡动画） */}
+      {/* 桌面端左栏：目录树（可收起） */}
       {!isMobile && (
-        <aside style={{ width: collapsed ? 0 : 'var(--sidebar-w)', borderRight: collapsed ? 'none' : '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s var(--ease)' }}>
-          <div style={{ width: 'var(--sidebar-w)', height: '100%' }}>
+        <aside style={{ width: collapsed ? 0 : 'var(--sidebar-w)', borderRight: collapsed ? 'none' : '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, overflow: 'hidden' }}>
+          <div style={{ width: 'var(--sidebar-w)', height: '100%', transition: 'opacity 0.18s var(--ease)', opacity: collapsed ? 0 : 1 }}>
             {sidebarContent}
           </div>
         </aside>
@@ -357,7 +427,13 @@ export default function WorkspaceDetail() {
       )}
 
       {/* 右栏：内容区 */}
-      <main style={{ flex: 1, overflow: 'auto', background: 'var(--surface)' }}>
+      <main ref={mainRef} onScroll={updateProgress} style={{ flex: 1, overflow: 'auto', background: 'var(--surface)' }}>
+        {/* 阅读进度条：仅 markdown（html iframe 内部自滚，不遮挡）；scaleX 避免布局抖动 */}
+        {isMd && mdContent && (
+          <div style={{ position: 'sticky', top: 0, zIndex: 20, height: 2, background: 'var(--border)' }}>
+            <div style={{ transform: `scaleX(${readProgress / 100})`, transformOrigin: 'left center', height: '100%', background: 'var(--accent)', transition: 'transform 0.12s linear' }} />
+          </div>
+        )}
         {!selectedFile ? (
           <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
             <EmptyState icon={<FolderOutlined />} title="选择一个文件" description="从左侧目录树选择一个文件查看" />
@@ -372,7 +448,7 @@ export default function WorkspaceDetail() {
           />
         ) : isHtml && htmlSrc ? (
           <div style={{ height: '100%' }}>
-            <HtmlSandbox src={htmlSrc} fill />
+            <HtmlSandbox src={htmlSrc} fill title="工作空间文件预览" />
           </div>
         ) : (
           <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--ink-400)' }}>
@@ -433,16 +509,16 @@ export default function WorkspaceDetail() {
         footer={[
           <Button key="close" onClick={() => setShareModalOpen(false)}>关闭</Button>,
           shareToken && <Button key="copy" type="primary" onClick={copyShareUrl}>复制链接</Button>,
-          shareToken && <Button key="revoke" danger onClick={() => { revokeShare(); setShareModalOpen(false) }}>取消分享</Button>,
+          shareToken && <Button key="revoke" danger onClick={revokeShare}>取消分享</Button>,
         ]}
       >
         {shareToken ? (
           <>
             <p style={{ fontSize: 13, color: 'var(--ink-500)', marginBottom: 12 }}>
-              任何人都可以通过此链接查看该工作空间（无需登录）。
+              任何获得此链接的人都可以只读查看该工作空间（无需登录）。请勿在公开场合泄露链接。
             </p>
             <p style={{ fontSize: 12, color: 'var(--ink-400)', marginBottom: 12 }}>
-              更新工作空间内容不会影响已生成的分享链接。
+              取消分享后链接将立即失效；更新内容不会影响已生成的链接。
             </p>
             <Input.Search value={shareUrl} readOnly enterButton="复制" onSearch={copyShareUrl} />
           </>
@@ -467,4 +543,13 @@ function findFirstFile(nodes: WorkspaceTreeNode[]): string | null {
     }
   }
   return null
+}
+
+// Helper: 目录树中是否存在指定文件路径（深链校验）
+function hasFile(nodes: WorkspaceTreeNode[], path: string): boolean {
+  for (const node of nodes) {
+    if (node.type === 'file' && node.path === path) return true
+    if (node.children && hasFile(node.children, path)) return true
+  }
+  return false
 }

@@ -47,7 +47,7 @@ export default function DocToc({ items }: Props) {
 
   return (
     <div className="doc-toc">
-      <div className="toc-label">ON THIS PAGE</div>
+      <div className="toc-label">本页目录</div>
       {items.map((item) => (
         <div
           key={item.id}

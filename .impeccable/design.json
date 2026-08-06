@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-05T09:40:47Z",
+  "title": "Design System: 文件知识库",
+  "extensions": {
+    "colorMeta": {
+      "primary":        { "role": "primary",  "displayName": "Drafting Indigo",       "canonical": "#3A5BD9", "dark": "#7C9CEB", "tonalRamp": ["#0a1129", "#15245b", "#1f368e", "#2848c3", "#4c6adc", "#8195e4", "#b4c0ee", "#e6eaf9"] },
+      "primary-press":  { "role": "primary",  "displayName": "Drafting Indigo Pressed", "canonical": "#2C46AE", "dark": "#A5BCF2", "tonalRamp": ["#0c1127", "#182558", "#243889", "#304cbb", "#566fd1", "#8899dd", "#b8c2ea", "#e8ebf8"] },
+      "primary-tint":   { "role": "primary",  "displayName": "Drafting Indigo Tint",  "canonical": "#EAEFFC", "dark": "#1C2747", "tonalRamp": ["#0a1329", "#16295a", "#203e8e", "#2853c2", "#4b74dd", "#7d9be8", "#b0c2f2", "#e4ebfb"] },
+      "paper":          { "role": "neutral",  "displayName": "Warm Paper",            "canonical": "#F4F3EE", "dark": "#131419", "tonalRamp": ["#1e1c15", "#423f2e", "#666147", "#8b845f", "#a9a27f", "#c2bda3", "#dbd7c8", "#f3f2ec"] },
+      "surface":        { "role": "neutral",  "displayName": "Sheet Surface",         "canonical": "#FBFBF7", "dark": "#1A1B21", "tonalRamp": ["#202013", "#474729", "#6f6f3e", "#979753", "#b4b474", "#caca9b", "#e0e0c2", "#f5f5eb"] },
+      "subtle-bg":      { "role": "neutral",  "displayName": "Subtle Surface",        "canonical": "#EEECE4", "dark": "#212228", "tonalRamp": ["#1e1c15", "#433e2e", "#686146", "#8d835e", "#aaa17e", "#c3bca2", "#dbd7c7", "#f3f2ec"] },
+      "border":         { "role": "neutral",  "displayName": "Hairline Border",       "canonical": "#DCD9CE", "dark": "#2C2D34", "tonalRamp": ["#1d1b16", "#403d30", "#635e4a", "#877f64", "#a59d83", "#bfbaa6", "#d9d5c9", "#f2f1ed"] },
+      "border-strong":  { "role": "neutral",  "displayName": "Strong Border",         "canonical": "#C2BFB4", "dark": "#3D3E46", "tonalRamp": ["#1c1b17", "#3d3b33", "#5f5b4f", "#817c6a", "#9f9a89", "#bab7ab", "#d6d4cc", "#f1f1ee"] },
+      "ink-900":        { "role": "neutral",  "displayName": "Warm Ink",              "canonical": "#1E1D1A", "dark": "#EAE8E2", "tonalRamp": ["#1b1a18", "#3c3a34", "#5d5a51", "#7d796e", "#9b978d", "#b7b5ae", "#d4d2ce", "#f1f0ef"] },
+      "ink-800":        { "role": "neutral",  "displayName": "Ink 800",               "canonical": "#2E2D29", "dark": "#D2D0C9", "tonalRamp": ["#1b1a18", "#3b3a35", "#5b5a52", "#7c796f", "#99978e", "#b6b5af", "#d3d2cf", "#f0f0ef"] },
+      "ink-700":        { "role": "neutral",  "displayName": "Ink 700",               "canonical": "#3F3E38", "dark": "#B5B2AA", "tonalRamp": ["#1b1a18", "#3c3a34", "#5c5a51", "#7d7a6e", "#9b988d", "#b7b5ae", "#d4d3ce", "#f1f0ef"] },
+      "ink-600":        { "role": "neutral",  "displayName": "Ink 600",               "canonical": "#4F4D45", "dark": "#96938A", "tonalRamp": ["#1b1a18", "#3c3a34", "#5c5a51", "#7d7a6e", "#9b988d", "#b7b5ae", "#d4d3ce", "#f1f0ef"] },
+      "ink-500":        { "role": "neutral",  "displayName": "Ink 500",               "canonical": "#5F5C53", "dark": "#817E76", "tonalRamp": ["#1b1a18", "#3c3a34", "#5d5a51", "#7d796e", "#9b978d", "#b7b5ae", "#d4d2ce", "#f1f0ef"] },
+      "ink-400":        { "role": "neutral",  "displayName": "Warm-Gray Dimension Line", "canonical": "#6F6C61", "dark": "#8B887F", "tonalRamp": ["#1b1a18", "#3c3a35", "#5c5a51", "#7d7a6e", "#9b988d", "#b7b5ae", "#d4d3ce", "#f1f0ef"] },
+      "ink-300":        { "role": "neutral",  "displayName": "Ink 300",               "canonical": "#9C988C", "dark": "#4F4E49", "tonalRamp": ["#1b1a18", "#3c3a34", "#5d5a51", "#7d796e", "#9b978d", "#b7b5ae", "#d4d2ce", "#f1f0ef"] },
+      "ink-200":        { "role": "neutral",  "displayName": "Ink 200",               "canonical": "#C4C1B5", "dark": "#393934", "tonalRamp": ["#1b1a18", "#3c3a34", "#5d5a51", "#7d796e", "#9b978d", "#b7b5ae", "#d4d2ce", "#f1f0ef"] },
+      "danger":         { "role": "secondary", "displayName": "Red Line",             "canonical": "#B93A32", "dark": "#E07A72", "tonalRamp": ["#270e0c", "#561d1a", "#872c26", "#b93a32", "#d05f58", "#dc8e89", "#e9bcb9", "#f7e9e8"] },
+      "success":        { "role": "secondary", "displayName": "Plot Green",           "canonical": "#3E7C3E", "dark": "#6FB06F", "tonalRamp": ["#122112", "#264a26", "#3a733a", "#4f9b4f", "#72b672", "#9bca9b", "#c4dfc4", "#ebf4eb"] },
+      "md-file":        { "role": "secondary", "displayName": "Markdown Blue",        "canonical": "#2C5FBE", "dark": "#7CA7F0", "tonalRamp": ["#0b1528", "#172e59", "#22478b", "#2c5fbe", "#5380d5", "#86a5df", "#b7c9eb", "#e7edf8"] },
+      "html-file":      { "role": "secondary", "displayName": "HTML Amber",           "canonical": "#B05A17", "dark": "#E09A55", "tonalRamp": ["#2c1707", "#61330f", "#994f15", "#ce6a1d", "#e28a45", "#e9ac7c", "#f1cdb2", "#faeee6"] },
+      "brand-bg":       { "role": "tertiary", "displayName": "Night Blueprint",      "canonical": "#1B2340", "dark": "#10121A", "tonalRamp": ["#0f1424", "#222b4f", "#354479", "#495ca2", "#6d7ebb", "#97a3ce", "#c1c8e1", "#ebedf5"] },
+      "brand-ink":      { "role": "tertiary", "displayName": "Blueprint Ink",        "canonical": "#C6CFEA", "dark": "#9AA7CC", "tonalRamp": ["#101523", "#222d4e", "#34457a", "#445da6", "#667dc2", "#90a1d5", "#bcc7e6", "#e9ecf7"] },
+      "cover-gradient-palette": { "role": "secondary", "displayName": "Plot-Color Covers", "canonical": "hash-derived", "tonalRamp": ["#667eea", "#4F46E5", "#0EA5E9", "#10B981", "#F59E0B", "#EC4899", "#14B8A6", "#6366F1"], "note": "Ten fixed gradient pairs from utils/format.ts GRADIENTS, picked by a stable name hash for sheet-card covers only." }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Display",  "purpose": "Login brand hero only. White on Night Blueprint." },
+      "headline": { "displayName": "Headline", "purpose": "Page titles with 44x3px indigo underline; reading h1 26px / h2 20px." },
+      "title":    { "displayName": "Title",    "purpose": "Sheet-card titles, sidebar names, document header titles." },
+      "body":     { "displayName": "Body",     "purpose": "UI body text, card descriptions, hint lines." },
+      "reading":  { "displayName": "Reading",  "purpose": "The markdown reading column: largest body text, 760px measure, plain paper." },
+      "button":   { "displayName": "Button",   "purpose": "Button label text." },
+      "label":    { "displayName": "Mono Spec Label", "purpose": "JetBrains Mono; all measurements, sheet numbers, dim labels, captions." }
+    },
+    "shadows": [
+      { "name": "ambient-low", "value": "0 1px 2px rgba(50,46,38,0.06)", "purpose": "Quiet resting shadow token; dark: 0 1px 2px rgba(0,0,0,0.3)." },
+      { "name": "ambient-md",  "value": "0 2px 8px rgba(50,46,38,0.08)",  "purpose": "Search-result hover lift; dark: 0 2px 8px rgba(0,0,0,0.4)." },
+      { "name": "ambient-lg",  "value": "0 8px 24px rgba(50,46,38,0.10)", "purpose": "Sheet-card hover, paired with -2px translateY and ink-400 border; dark: 0 8px 24px rgba(0,0,0,0.5)." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for all state transitions (backgrounds, borders, shadows, transform)." },
+      { "name": "duration-hover", "value": "0.15s", "purpose": "Hover/state transitions on cards, list items, buttons." },
+      { "name": "duration-page", "value": "0.2s", "purpose": "Page fade-in and theme-switch transitions." }
+    ],
+    "breakpoints": [
+      { "name": "lg", "value": "1024px", "purpose": "TOC rail hidden; reading padding compresses to 24px." },
+      { "name": "md", "value": "768px",  "purpose": "Header compresses, page-header wraps, sidebar becomes Drawer, login brand hidden." },
+      { "name": "coarse", "value": "pointer: coarse", "purpose": "44px minimum touch targets on list rows, tree nodes, header buttons." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Creation and primary actions (新建, 上传文件, 登录). Drafting Indigo fill.",
+      "html": "<button class=\"ds-btn-primary\">新建集合</button>",
+      "css": ".ds-btn-primary { background: var(--accent); color: #fff; border: none; border-radius: 6px; height: 32px; padding: 0 16px; font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s cubic-bezier(0.4,0,0.2,1), box-shadow 0.15s; } .ds-btn-primary:hover { background: var(--accent-press); } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Header Tab",
+      "kind": "nav",
+      "refersTo": "button-tab",
+      "description": "Header navigation tab. Active tab fills Drafting Indigo; idle tabs are transparent text buttons.",
+      "html": "<nav style=\"display:flex;gap:4px\"><button class=\"ds-btn-tab\">知识集合</button><button class=\"ds-btn-tab is-active\">工作空间</button></nav>",
+      "css": ".ds-btn-tab { background: transparent; color: var(--ink-500); border: none; border-radius: 6px; height: 32px; padding: 0 12px; font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s cubic-bezier(0.4,0,0.2,1), color 0.15s; } .ds-btn-tab:hover { background: var(--subtle-bg); color: var(--ink-900); } .ds-btn-tab.is-active { background: var(--accent); color: #fff; } .ds-btn-tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "Header and list search. 32px tall, hairline border, prefix glyph in ink-300.",
+      "html": "<label class=\"ds-input-search\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 16 16\" fill=\"none\" aria-hidden=\"true\"><circle cx=\"7\" cy=\"7\" r=\"5\" stroke=\"currentColor\" stroke-width=\"1.5\"/><path d=\"M11 11l3.5 3.5\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg><input placeholder=\"搜索文档...\" /></label>",
+      "css": ".ds-input-search { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; height: 32px; padding: 0 10px; color: var(--ink-300); } .ds-input-search input { border: none; background: none; outline: none; font-family: var(--sans); font-size: 13px; color: var(--ink-900); width: 180px; } .ds-input-search:focus-within { border-color: var(--accent); } .ds-input-search input::placeholder { color: var(--ink-300); }"
+    },
+    {
+      "name": "Sheet Card",
+      "kind": "card",
+      "refersTo": "sheet-card",
+      "description": "Collection / workspace card: gradient cover strip with mono sheet number, body, and spec title strip.",
+      "html": "<div class=\"ds-sheet-card\"><div class=\"ds-sheet-cover\">K<span class=\"ds-sheet-no\">KB-001</span></div><div class=\"ds-sheet-body\"><div class=\"ds-sheet-title\">知识集合</div><div class=\"ds-sheet-desc\">按主题整理单份文档（.md / .html），拖拽卡片可调整顺序</div><div class=\"ds-title-strip\"><span class=\"ds-sheet-cell\"><b>文档</b>3 篇</span><span class=\"ds-sheet-cell\"><b>更新</b>2 天前</span></div></div></div>",
+      "css": ".ds-sheet-card { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; overflow: hidden; cursor: pointer; transition: border-color 0.15s cubic-bezier(0.4,0,0.2,1), box-shadow 0.15s, transform 0.15s; } .ds-sheet-card:hover { border-color: var(--ink-400); box-shadow: 0 8px 24px rgba(50,46,38,0.10); transform: translateY(-2px); } .ds-sheet-cover { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; color: #fff; background: linear-gradient(135deg, #667eea, #764ba2); font-family: var(--mono); font-size: 16px; font-weight: 600; position: relative; } .ds-sheet-cover::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: repeating-linear-gradient(90deg, rgba(255,255,255,0.5) 0 5px, transparent 5px 8px); opacity: 0.5; } .ds-sheet-no { font-family: var(--mono); font-size: 10px; opacity: 0.75; letter-spacing: 0.06em; } .ds-sheet-body { padding: 20px 20px 16px; } .ds-sheet-title { font-size: 14px; font-weight: 600; color: var(--ink-900); letter-spacing: -0.01em; margin-bottom: 8px; } .ds-sheet-desc { font-size: 13px; color: var(--ink-500); line-height: 1.55; } .ds-title-strip { position: relative; margin-top: 12px; padding-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--ink-400); } .ds-title-strip::before { content: ''; position: absolute; top: -1px; left: 0; right: 0; height: 2px; background: var(--border); border-radius: 1px; } .ds-sheet-cell { display: flex; align-items: center; gap: 5px; white-space: nowrap; } .ds-sheet-cell b { color: var(--ink-600); font-weight: 500; }"
+    },
+    {
+      "name": "Document List Item",
+      "kind": "custom",
+      "refersTo": "doc-item",
+      "description": "File row with type glyph, mono spec line, and an active state that fills Indigo Tint with a spine and inset ring.",
+      "html": "<div class=\"ds-doc-item is-active\"><svg class=\"ds-doc-icon\" width=\"14\" height=\"16\" viewBox=\"0 0 12 14\" fill=\"none\" aria-hidden=\"true\"><path d=\"M1 0h7l4 4v9a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V1a1 1 0 0 1 1-1z\" stroke=\"currentColor\"/><path d=\"M8 0v4h4\" stroke=\"currentColor\"/><path d=\"M3 7h6M3 9.5h6M3 12h4\" stroke=\"currentColor\"/></svg><div><div class=\"ds-doc-name\">指南.md</div><div class=\"ds-doc-meta\">12.4 KB · 3 天前 <span class=\"ds-doc-tag\">v2</span></div></div></div>",
+      "css": ".ds-doc-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 5px; cursor: pointer; transition: background 0.12s cubic-bezier(0.4,0,0.2,1); position: relative; } .ds-doc-item:hover { background: var(--subtle-bg); } .ds-doc-item.is-active { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--accent); } .ds-doc-item.is-active::before { content: ''; position: absolute; left: -1px; top: 6px; bottom: 6px; width: 1px; background: var(--accent); border-radius: 1px; } .ds-doc-icon { color: var(--md-color); flex-shrink: 0; } .ds-doc-name { font-size: 13px; color: var(--ink-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-doc-item.is-active .ds-doc-name { color: var(--accent-press); font-weight: 500; } .ds-doc-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-400); margin-top: 1px; } .ds-doc-tag { font-family: var(--mono); font-size: 10px; line-height: 16px; padding: 0 5px; border-radius: 3px; color: var(--ink-600); background: var(--subtle-bg); border: 1px solid var(--border); white-space: nowrap; }"
+    },
+    {
+      "name": "Dimension Label",
+      "kind": "custom",
+      "refersTo": "dim-label",
+      "description": "The world's measurement voice: mono, 11px, with a 6x1px tick at each end. Used for sheet numbers and quiet specs.",
+      "html": "<span class=\"ds-dim\">SHT-01 · 知识集合</span>",
+      "css": ".ds-dim { font-family: var(--mono); font-size: 11px; color: var(--ink-400); display: inline-flex; align-items: center; gap: 6px; letter-spacing: 0.02em; } .ds-dim::before, .ds-dim::after { content: ''; width: 6px; height: 1px; background: currentColor; }"
+    },
+    {
+      "name": "Registration Mark",
+      "kind": "custom",
+      "refersTo": "dim-label",
+      "description": "14px drafting plus-sign with center dot in currentColor. Header and login-brand corner detail.",
+      "html": "<span class=\"ds-reg-mark\"><span class=\"ds-reg-dot\"></span></span>",
+      "css": ".ds-reg-mark { position: relative; width: 14px; height: 14px; flex-shrink: 0; } .ds-reg-mark::before, .ds-reg-mark::after { content: ''; position: absolute; background: currentColor; } .ds-reg-mark::before { left: 6px; top: 0; width: 2px; height: 14px; } .ds-reg-mark::after { top: 6px; left: 0; width: 14px; height: 2px; } .ds-reg-dot { position: absolute; left: 5px; top: 5px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }"
+    },
+    {
+      "name": "Tag Chip",
+      "kind": "chip",
+      "refersTo": "tag-chip",
+      "description": "Mono spec chip for tags and version badges: subtle surface, hairline border, 3px radius.",
+      "html": "<span class=\"ds-tag\"># 知识</span>",
+      "css": ".ds-tag { font-family: var(--mono); font-size: 10px; line-height: 16px; padding: 0 5px; border-radius: 3px; color: var(--ink-600); background: var(--subtle-bg); border: 1px solid var(--border); white-space: nowrap; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Engineering Spec Sheet",
+    "overview": "The product treats knowledge the way an engineer treats a drawing sheet: precise, controlled, traceable. Every collection is a sheet with a title block and a drawing number; every document is a specification read inside ruled margins; measurements and annotations stay visible instead of hiding in hover states. The build rejects the generic admin-shell \"knowledge tool uniform\" and the cream-serif editorial default that most knowledge products reach for.\n\nThe world is drawn in four materials: a warm paper sheet, near-black warm ink, a single restrained indigo drafting ink, and warm-gray dimension lines. Monospace carries every drawing number and measurement. The drafting grid, dimension ticks, annotation bubbles (blockquotes), registration marks, and double-line title block are the recurring motifs. Chromatic variety is deliberately quarantined to the hash-derived gradient covers on sheet cards — the only place a plot palette appears. Dark mode is the night drafting page: the paper inverts to dark slate and the ink inverts to near-white, while the accent lifts to a pale blueprint blue for contrast.\n\nThe build lands the direction contract with two deliberate refinements. First, the fine grid paper is a list-page material only — the reading column stays on plain paper so the rules never compete with the prose. Second, the contract named a single indigo accent; the shipped cards add a hash-stable gradient cover layer (ten preset pairs, \"plot color\") that gives every sheet a stable, name-derived identity without loosening the restrained drafting ink everywhere else.",
+    "keyCharacteristics": [
+      "Warm paper surfaces and warm near-black ink; no pure black, no pure gray.",
+      "One indigo drafting ink used as thin structural marks — underlines, spines, focus rings, ridges — never as decorative fill.",
+      "Monospace (JetBrains Mono) carries all sheet numbers, counts, sizes, timestamps, and file extensions.",
+      "20px drafting grid on list pages only; the reading column is plain paper.",
+      "Title-block header (2px ink rule + dashed accent rule), dimension ticks, registration marks, annotation bubbles.",
+      "Self-hosted OFL fonts (IBM Plex Sans + JetBrains Mono); offline, no runtime CDN.",
+      "Light paper / night-blueprint dark themes, switchable with no state loss."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Indigo is applied as thin structural marks; full-surface indigo is reserved for the primary button and the active header tab. The accent's rarity is the point — a screen should read as ink on paper with a few precise blue strokes, not a blue UI.", "section": "colors" },
+      { "name": "The Red-Line Rule", "body": "#B93A32 is reserved for destructive actions and their confirmations. It never decorates, never appears on non-destructive chrome.", "section": "colors" },
+      { "name": "The No Pure Black Rule", "body": "Text and lines are warm ink, never #000. Surfaces are warm paper, never pure gray. Every neutral carries a warm cast.", "section": "colors" },
+      { "name": "The Plot-Color Rule", "body": "Chromatic variety is quarantined to sheet-card covers, where a stable hash of the sheet name picks one of ten preset gradient pairs. The same name always gets the same cover; no other surface borrows these colors.", "section": "colors" },
+      { "name": "The Mono-Spec Rule", "body": "Every measurement — file counts, sizes, timestamps, version numbers, file extensions, sheet numbers — is set in JetBrains Mono at 10–12px. Spec text is never set in sans.", "section": "typography" },
+      { "name": "The Sheet-Number Rule", "body": "Every sheet carries a mono drawing number: KB-### for collections, WS-### for workspaces, SHT-0# for the header's current-sheet label.", "section": "typography" },
+      { "name": "The Reading-Is-Largest Rule", "body": "The reading column sets the largest body text in the system (16px); the shell UI stays at 13–14px so the chrome never competes with the prose.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat and defined by 1px borders and ruled lines at rest. Shadows are a hover-only response and stay warm and soft — no hard offset, no neobrutalist drop.", "section": "elevation" },
+      { "name": "The Reading Plain-Paper Rule", "body": "The 20px paper grid is a list-page material only; the reading column stays on plain paper so the rules never compete with the prose.", "section": "layout" }
+    ],
+    "dos": [
+      "Do set every measurement — counts, sizes, timestamps, sheet numbers, versions, extensions — in JetBrains Mono at 10–12px (The Mono-Spec Rule).",
+      "Do apply indigo as thin structural marks (3px underlines, 2px spines, focus rings, ridges) and reserve full-surface indigo for the primary button and active header tab (The One Accent Rule).",
+      "Do give every sheet a mono drawing number — KB-###, WS-###, SHT-0# (The Sheet-Number Rule).",
+      "Do use the 20px paper grid on list pages, and keep the reading column on plain paper (The Reading Plain-Paper Rule).",
+      "Do write text in warm ink on warm paper — never pure black, never pure gray (The No Pure Black Rule).",
+      "Do self-host the OFL font pair; the build ships no runtime font CDN.",
+      "Do keep the reading column the largest text in the system (16px) against a 13–14px shell."
+    ],
+    "donts": [
+      "Don't use pure black (#000) or pure gray for text or lines — the neutrals always carry a warm cast.",
+      "Don't add hard offset or neobrutalist shadows — depth is flat-at-rest with warm, soft, hover-only shadows (The Flat-By-Default Rule).",
+      "Don't run the drafting grid under reading content; the prose column stays on plain paper so the rules never compete with the text.",
+      "Don't use the indigo accent as a decorative filled area beyond the primary button and active tab — its rarity is the point.",
+      "Don't set spec text in sans, or body text in mono; the two families never trade jobs.",
+      "Don't introduce a second accent or shift the card covers outside the fixed ten-pair hash palette — chromatic variety lives only on sheet covers (The Plot-Color Rule).",
+      "Don't use Red Line (#B93A32) anywhere except destructive actions and confirmations (The Red-Line Rule)."
+    ]
+  }
+}

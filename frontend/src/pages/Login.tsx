@@ -40,6 +40,10 @@ export default function Login() {
             <div className="login-brand-mark">K</div>
             <span>文件知识库</span>
           </div>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="reg-mark" aria-hidden="true" style={{ color: 'var(--brand-ink)', opacity: 0.6 }}><span className="dot" /></span>
+            <span className="login-brand-spec">SELF-HOSTED · KB</span>
+          </span>
         </div>
 
         <div className="login-brand-hero">
@@ -81,7 +85,7 @@ export default function Login() {
           </Form>
 
           <div className="login-hint">
-            默认 admin / admin123
+            本地默认账户 admin / admin123 · 登录后请尽快修改
           </div>
         </div>
       </div>

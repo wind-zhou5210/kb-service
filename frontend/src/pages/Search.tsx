@@ -17,6 +17,11 @@ export default function Search() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const q = params.get('q') || ''
+  // M-2：返回回退（深链首屏无历史时回首页，避免退出版面）
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/')
+  }
   const [input, setInput] = useState(q)
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -41,8 +46,12 @@ export default function Search() {
     <div style={{ width: '100%', padding: '32px 24px', maxWidth: 860, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
         <ArrowLeftOutlined
-          onClick={() => navigate('/')}
-          style={{ color: 'var(--ink-400)', cursor: 'pointer', fontSize: 14 }}
+          onClick={goBack}
+          role="button"
+          tabIndex={0}
+          aria-label="返回"
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') goBack() }}
+          style={{ color: 'var(--ink-400)', cursor: 'pointer', fontSize: 14, padding: 6, borderRadius: 4 }}
         />
         <Input
           autoFocus
@@ -93,7 +102,7 @@ export default function Search() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 {r.ext === '.md' ? <FileTextOutlined style={{ color: 'var(--md-color)', fontSize: 14 }} /> : <Html5Outlined style={{ color: 'var(--html-color)', fontSize: 14 }} />}
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-900)' }}>{r.title}</span>
-                <Tag color={r.ext === '.md' ? 'blue' : 'orange'} style={{ borderRadius: 4, fontSize: 10, margin: 0 }}>{r.ext}</Tag>
+                <Tag color={r.ext === '.md' ? 'var(--md-color)' : 'var(--html-color)'} style={{ borderRadius: 4, fontSize: 10, margin: 0 }}>{r.ext}</Tag>
                 <span style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)' }}>· {r.collection_name}</span>
               </div>
               <div style={{ fontSize: 13, color: 'var(--ink-500)', lineHeight: 1.6 }}>

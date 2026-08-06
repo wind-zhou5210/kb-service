@@ -1,6 +1,6 @@
-import { Dropdown, Modal } from 'antd'
-import { MoreOutlined, DeleteOutlined, FolderOutlined, EditOutlined, ShareAltOutlined, StopOutlined } from '@ant-design/icons'
-import { relativeTime } from '../utils/format'
+import { Dropdown, Modal, Button } from 'antd'
+import { MoreOutlined, DeleteOutlined, EditOutlined, ShareAltOutlined, StopOutlined } from '@ant-design/icons'
+import { relativeTime, hashGradient, initials } from '../utils/format'
 import type { Collection } from '../api/client'
 
 interface Props {
@@ -14,7 +14,13 @@ interface Props {
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
 }
 
+function sheetNo(id: number): string {
+  return `KB-${String(id).padStart(3, '0')}`
+}
+
 export default function CollectionCard({ collection, docCount = 0, onClick, onEdit, onDelete, onShare, onRevokeShare, dragHandleProps }: Props) {
+  const [g1, g2] = hashGradient(collection.name)
+
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
     Modal.confirm({
@@ -31,7 +37,7 @@ export default function CollectionCard({ collection, docCount = 0, onClick, onEd
     e.stopPropagation()
     Modal.confirm({
       title: '取消分享',
-      content: '取消后，已分享的链接将立即失效。确认取消？',
+      content: '取消后，已分享的链接将立即失效，所有访问者将无法再查看。确认取消？',
       okType: 'danger',
       okText: '取消分享',
       cancelText: '保留',
@@ -41,25 +47,13 @@ export default function CollectionCard({ collection, docCount = 0, onClick, onEd
 
   return (
     <div className="col-card" onClick={onClick}>
+      {/* 图纸封面：渐变 + 首字 + 图号 */}
+      <div className="cover" style={{ background: `linear-gradient(135deg, ${g1}, ${g2})` }}>
+        <span className="cover-init">{initials(collection.name)}</span>
+        <span className="cover-no">{sheetNo(collection.id)}</span>
+      </div>
       <div className="body">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }} {...dragHandleProps}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 'var(--r-md)',
-              background: 'var(--subtle-bg)',
-              border: '1px solid var(--border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--ink-500)',
-              fontSize: 'var(--text-md)',
-              flexShrink: 0,
-            }}
-          >
-            <FolderOutlined />
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }} {...dragHandleProps}>
           <div className="title" style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
             <div
               style={{
@@ -75,14 +69,15 @@ export default function CollectionCard({ collection, docCount = 0, onClick, onEd
             </div>
           </div>
           {collection.share_token && (
-            <ShareAltOutlined style={{ fontSize: 'var(--text-sm)', color: 'var(--ink-300)', flexShrink: 0 }} />
+            <ShareAltOutlined style={{ fontSize: 'var(--text-sm)', color: 'var(--accent)', flexShrink: 0 }} aria-label="已分享" />
           )}
         </div>
         <div className="desc" style={collection.description ? undefined : { color: 'var(--ink-400)' }}>
           {collection.description || '暂无描述'}
         </div>
-        <div className="meta">
-          <span>{docCount} 篇 · {relativeTime(collection.updated_at)}</span>
+        <div className="title-strip">
+          <span className="cell"><b>文档</b>{docCount} 篇</span>
+          <span className="cell" style={{ minWidth: 0, overflow: 'hidden' }}><b>更新</b>{relativeTime(collection.updated_at)}</span>
           <Dropdown
             menu={{
               items: [
@@ -116,12 +111,14 @@ export default function CollectionCard({ collection, docCount = 0, onClick, onEd
             }}
             trigger={['click']}
           >
-            <span
+            <Button
+              type="text"
+              size="small"
+              aria-label="集合操作"
+              icon={<MoreOutlined />}
               onClick={(e) => e.stopPropagation()}
-              style={{ padding: '2px 6px', borderRadius: 'var(--r-sm)', cursor: 'pointer', color: 'var(--ink-400)' }}
-            >
-              <MoreOutlined />
-            </span>
+              style={{ color: 'var(--ink-400)' }}
+            />
           </Dropdown>
         </div>
       </div>
