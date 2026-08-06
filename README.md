@@ -1,11 +1,19 @@
 # 文件知识管理服务
 
-自托管的文件型知识库：支持创建知识集合、上传 Markdown / HTML 文件，并在线安全渲染。提供 Web 界面和命令行工具两种使用方式。
+自托管的文件型知识库：支持创建**知识集合**与**工作空间**，上传 Markdown / HTML 文件，并在线安全渲染。提供 Web 界面和命令行工具两种使用方式。
+
+界面采用 **「工程图纸·规格单」** 视觉世界：暖纸墨阶 + 靛蓝制图墨 + 制图语言（图号标题栏、尺寸标注、注册标记、图纸网格、注释气泡），暗色为"夜间制图页"。设计系统记录于 [DESIGN.md](DESIGN.md)，产品档案见 [PRODUCT.md](PRODUCT.md)。
 
 核心特点：
 - **Markdown 渲染**：`react-markdown` + remark/rehype 插件（GFM、代码高亮、KaTeX 公式、锚点目录），默认禁用原始 HTML，杜绝 XSS。
-- **HTML 渲染**：`iframe sandbox`（仅 `allow-scripts`）浏览器原生隔离，保留原貌脚本与样式的同时杜绝逃逸；服务端 bleach 二次净化高危事件属性；postMessage 上报高度实现自适应。
+- **HTML 渲染**：`iframe sandbox`（仅 `allow-scripts`）浏览器原生隔离，保留原貌脚本与样式的同时杜绝逃逸；服务端 bleach 二次净化高危事件属性；postMessage 上报高度实现自适应；带制图框架与"净化隔离"规格条。
 - **内容寻址存储**：文件按 sha1 去重，引用计数自动清理。
+- **工作空间**：按目录结构组织文件，支持 zip 整体上传、单个添加/替换/删除、目录树预览。
+- **知识入口**：首页"最近阅读"（本地记录集合文档 + 工作空间文件），点击继续阅读并**恢复上次滚动位置**。
+- **阅读体验**：阅读进度条、切换文档回到顶部、全屏模式。
+- **版本历史**：文档多版本查看（应用内渲染）/ 恢复 / 删除。
+- **组织整理**：标签、备注、集合卡片与文档列表拖拽排序（防抖批量保存 + 可撤销）。
+- **暗色 / 亮色主题**：可切换、跟随系统偏好、首屏防闪。
 - **CLI 工具**：`kb` 命令行，终端完成上传、搜索、管理，支持 JSON 输出。`npm install -g kb-service-cli`。
 - **技术栈**：FastAPI（asyncio）+ SQLite + React 18 + Ant Design 5 + TypeScript CLI。
 
@@ -15,7 +23,7 @@
 .
 ├── backend/              FastAPI 后端
 │   ├── app/
-│   │   ├── api/            路由（auth / collections / documents / search / share）
+│   │   ├── api/            路由（auth / collections / documents / doc_share / search / share / workspaces）
 │   │   ├── core/           配置 / 数据库 / 鉴权
 │   │   ├── services/       渲染服务（HTML 净化 + 高度脚本注入）
 │   │   ├── storage/        内容寻址存储适配器
@@ -24,20 +32,23 @@
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/             React 前端
+│   ├── public/fonts/       自托管 OFL 字体（IBM Plex Sans / JetBrains Mono）
 │   ├── src/
-│   │   ├── pages/          Login / Collections / CollectionDetail / Search
-│   │   ├── components/     MarkdownViewer / HtmlSandbox / UploadModal
+│   │   ├── pages/          Login / Collections / CollectionDetail / Search / Workspaces / WorkspaceDetail / Shared*
+│   │   ├── components/     MarkdownViewer / HtmlSandbox / DocToc / DocListItem / CollectionCard / WorkspaceTree / VersionHistoryModal / UploadModal / EmptyState / SubNav / Breadcrumbs
 │   │   ├── api/            axios 封装
-│   │   └── store/          zustand
+│   │   ├── store/          zustand（auth / collection / workspace / theme）
+│   │   ├── utils/          format / clipboard / recent（最近阅读）
+│   │   └── hooks/          useMediaQuery
 │   └── Dockerfile
-├── .github/workflows/     CI/CD 自动部署
-│   └── deploy.yml
 ├── cli/                  kb 命令行工具
 │   ├── src/
 │   │   ├── commands/       auth / config / collection / document / share
 │   │   └── utils/          table / format / prompt
 │   ├── package.json
 │   └── README.md
+├── .github/workflows/     CI/CD 自动部署
+│   └── deploy.yml
 ├── docs/                 设计文档
 │   ├── plans/             实现计划
 │   └── cicd-solutions.md  CI/CD 方案调研
@@ -45,6 +56,9 @@
 │   ├── 001-doc-fullscreen-and-share/
 │   ├── 002-kb-cli/
 │   └── 003-cicd-acr-deploy/
+├── PRODUCT.md            产品档案（impeccable init）
+├── DESIGN.md             设计系统记录（impeccable document）
+├── CLAUDE.md             Claude Code 项目指引
 ├── docker-compose.yml        本地开发 compose
 ├── docker-compose.prod.yml   生产部署 compose（ACR 镜像）
 ├── deploy.sh                 一键部署脚本
@@ -98,11 +112,14 @@ kb search "关键词"
 
 ### 后端
 
+系统 Python 可能过旧（本机为 3.7，无法运行 FastAPI 依赖），推荐用 conda 建 Python 3.11 环境：
+
 ```bash
+conda create -n kb python=3.11 -y
+conda activate kb
 cd backend
-python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # 按需修改
+cp .env.example .env      # 修改 KB_JWT_SECRET 与本地存储路径（KB_STORAGE_DIR / KB_DB_PATH / KB_WORKSPACE_DIR）
 uvicorn app.main:app --reload --port 8000
 # API 文档：http://localhost:8000/docs
 ```
@@ -114,6 +131,10 @@ cd frontend
 npm install
 npm run dev    # http://localhost:5173 ，/api 自动代理到 8000
 ```
+
+> **inotify 限制提示**：低配 Linux 上 `fs.inotify.max_user_watches` 默认 8192，Vite 文件监视可能触发 ENOSPC 崩溃。
+> 永久修复：`sudo sysctl fs.inotify.max_user_watches=524288`（并写入 `/etc/sysctl.d/`）。
+> 临时变通：`VITE_USE_POLLING=1 npm run dev`（改用轮询，CPU 略高）。
 
 ### CLI
 
@@ -147,6 +168,9 @@ node dist/index.js --help    # 直接运行
 - [x] CI/CD 自动化部署（GitHub Actions + 阿里云 ACR）
 - [x] 文档移动（集合间迁移）
 - [x] 重复文件上传校验（SHA1 去重提示）
+- [x] 工作空间（目录树 + zip 上传）
+- [x] 版本历史、最近阅读、阅读进度、暗色主题
+- [x] 前端 UI 全面重设计（工程图纸·规格单视觉世界）
 - [ ] 语雀文档批量导出迁移工具
 - [ ] 登录系统升级（手机验证码登录）
 - [ ] CI/CD 增加自动化测试 step
