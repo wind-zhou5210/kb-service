@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-文件知识管理服务 — 自托管文件型知识库，支持上传 Markdown/HTML 文件并在线安全渲染。
+文件知识管理服务 — 自托管文件型知识库，支持上传 Markdown/HTML 文件并在线安全渲染。前端采用「工程图纸·规格单」视觉世界（设计系统见 `DESIGN.md`），产品档案见 `PRODUCT.md`。
 
 ## 构建与运行
 
@@ -19,9 +19,10 @@ docker compose up -d --build
 # push 到 main 分支时 GitHub Actions 自动触发
 # .github/workflows/deploy.yml — 校验 → 构建推送 ACR → SSH 部署
 
-# 本地后端开发
+# 本地后端开发（系统 Python 可能过旧如 3.7，建议 conda 建 3.11 环境）
+conda create -n kb python=3.11 -y && conda activate kb
 cd backend
-cp .env.example .env
+cp .env.example .env   # 修改 KB_JWT_SECRET 与本地存储路径（KB_STORAGE_DIR/KB_DB_PATH/KB_WORKSPACE_DIR）
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 
@@ -29,6 +30,7 @@ uvicorn app.main:app --reload --port 8000
 cd frontend
 npm install
 npm run dev           # localhost:5173，/api 代理到 localhost:8000
+# inotify 上限低时：VITE_USE_POLLING=1 npm run dev（或 sudo sysctl fs.inotify.max_user_watches=524288 永久修复）
 
 # CLI 工具开发
 cd cli
@@ -88,23 +90,45 @@ app/
 
 ```
 src/
-  main.tsx               # 入口：ConfigProvider(antd zhCN) + BrowserRouter
-  App.tsx                # 5 条路由 + RequireAuth 守卫
+  main.tsx               # 入口：ConfigProvider(antd zhCN) + BrowserRouter + 设计系统 tokens
+  App.tsx                # 9+ 条路由 + RequireAuth 守卫
+  index.css              # 设计系统（工程图纸·规格单世界 + 暗色夜间制图页）
   api/client.ts          # Axios 实例、请求/响应拦截器、全部 API 方法
-  store/auth.ts          # Zustand store（token + localStorage 持久化）
+  store/
+    auth.ts              # Zustand store（token + localStorage 持久化）
+    collection.ts        # 集合列表/当前集合
+    workspace.ts         # 工作空间列表/当前空间
+    theme.ts             # 亮/暗主题（data-theme 挂 html）
   pages/
-    Login.tsx            # 登录页
-    Collections.tsx      # 集合网格（dnd-kit 拖拽排序）
-    CollectionDetail.tsx # 文件列表 + Markdown/HTML 查看器
+    Login.tsx            # 登录页（夜间蓝图品牌区）
+    Collections.tsx      # 集合网格 + 最近阅读知识入口
+    CollectionDetail.tsx # 文件列表 + Markdown/HTML 查看器 + 阅读进度条
     Search.tsx           # FTS 搜索结果页
-    SharedCollection.tsx # 公开分享只读视图
+    Workspaces.tsx       # 工作空间卡片
+    WorkspaceDetail.tsx  # 目录树 + 文件预览（?file= 深链）
+    SharedCollection.tsx # 集合公开分享（移动端 Drawer）
+    SharedDocument.tsx   # 单文档分享
+    SharedWorkspace.tsx  # 工作空间分享
   components/
-    AppLayout.tsx        # 顶栏 + 搜索 + 用户菜单
-    HtmlSandbox.tsx      # iframe sandbox="allow-scripts"（安全核心）
+    AppLayout.tsx        # 顶栏（制图标题栏）+ 搜索 + 用户菜单
+    HtmlSandbox.tsx      # iframe sandbox="allow-scripts"（安全核心）+ 制图框架
     MarkdownViewer.tsx   # react-markdown + GFM/KaTeX/高亮/锚点
     DocToc.tsx           # 目录侧栏（IntersectionObserver 滚动 spy）
-    UploadModal.tsx      # 拖拽上传弹窗
+    DocListItem.tsx      # 文档列表项（标签 chip）
+    CollectionCard.tsx   # 集合图纸卡（渐变封面 + KB 图号）
+    WorkspaceTree.tsx    # 工作空间目录树 + 右键菜单
+    VersionHistoryModal.tsx # 版本历史（查看/恢复/删除）
+    UploadModal.tsx      # 拖拽上传弹窗（同名覆盖预检）
+    EmptyState.tsx / SubNav.tsx / Breadcrumbs.tsx
+  utils/
+    recent.ts            # 最近阅读 + 滚动位置记忆（localStorage）
+    format.ts            # 格式化/hashGradient 封面渐变
+    clipboard.ts
+  hooks/
+    useMediaQuery.ts     # 移动端断点（Drawer 切换）
 ```
+
+设计系统文档：`DESIGN.md`（+ `.impeccable/design.json`）；产品档案：`PRODUCT.md`。
 
 ## 关键安全机制
 
