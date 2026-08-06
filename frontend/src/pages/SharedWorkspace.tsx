@@ -105,7 +105,7 @@ export default function SharedWorkspace() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', gap: 12 }}>
         <EmptyState icon={<LockOutlined />} title="分享链接无效或已失效" description="该工作空间的分享链接不存在或已被撤销" />
-        <Link to="/login">返回登录</Link>
+        <Link to="/">返回首页</Link>
       </div>
     )
   }
@@ -163,10 +163,10 @@ export default function SharedWorkspace() {
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        {/* 桌面端左栏：目录树（可收起，宽度过渡动画） */}
+        {/* 桌面端左栏：目录树（可收起） */}
         {!isMobile && (
-          <aside style={{ width: collapsed ? 0 : 280, borderRight: collapsed ? 'none' : '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, overflow: 'hidden', transition: 'width 0.2s var(--ease)' }}>
-            <div style={{ width: 280, height: '100%' }}>
+          <aside style={{ width: collapsed ? 0 : 280, borderRight: collapsed ? 'none' : '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, overflow: 'hidden' }}>
+            <div style={{ width: 280, height: '100%', transition: 'opacity 0.18s var(--ease)', opacity: collapsed ? 0 : 1 }}>
               {sidebarContent}
             </div>
           </aside>
@@ -201,7 +201,7 @@ export default function SharedWorkspace() {
             />
           ) : isHtml && htmlSrc ? (
             <div style={{ height: '100%' }}>
-              <HtmlSandbox src={htmlSrc} fill />
+              <HtmlSandbox src={htmlSrc} fill title="分享工作空间文件预览" />
             </div>
           ) : (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-400)' }}>

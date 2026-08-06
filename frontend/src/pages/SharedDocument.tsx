@@ -39,7 +39,7 @@ export default function SharedDocument() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', gap: 12 }}>
         <Empty description="分享链接无效或已失效" />
-        <Link to="/login">返回登录</Link>
+        <Link to="/">返回首页</Link>
       </div>
     )
   }
@@ -55,7 +55,7 @@ export default function SharedDocument() {
       }}>
         <Space>
           <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink-900)' }}>{doc.title}</span>
-          <Tag color={isMd ? 'blue' : 'orange'} style={{ borderRadius: 4, fontSize: 11 }}>{doc.ext}</Tag>
+          <Tag color={isMd ? 'var(--md-color)' : 'var(--html-color)'} style={{ borderRadius: 4, fontSize: 11 }}>{doc.ext}</Tag>
           <span style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)' }}>
             {formatSize(doc.size)} · {relativeTime(doc.created_at)} · 只读分享
           </span>
@@ -65,7 +65,7 @@ export default function SharedDocument() {
       {isMd ? (
         <MarkdownViewer content={content} />
       ) : (
-        <div style={{ padding: 24, height: 'calc(100vh - 53px)' }}><HtmlSandbox html={content} fill /></div>
+        <div style={{ padding: 24, height: 'calc(100vh - 53px)' }}><HtmlSandbox html={content} fill title="分享文档内容预览" /></div>
       )}
     </div>
   )

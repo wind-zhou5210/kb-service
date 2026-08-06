@@ -1,11 +1,33 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
+    <script>
+      // 主题闪白防护：CSS 应用前先设置 data-theme，暗色首屏不闪白
+      ;(function () {
+        try {
+          var t = localStorage.getItem('kb-theme')
+          if (t !== 'light' && t !== 'dark') {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          }
+          document.documentElement.dataset.theme = t
+        } catch (e) {}
+      })()
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="自托管的文件型知识库：Markdown/HTML 安全渲染、全文检索、只读分享" />
     <title>文件知识库</title>
   </head>
   <body>
+    <!--
+      DIRECTION CONTRACT — 工程图纸·规格单
+      THESIS: 知识如工程图纸：精确、受控、可追溯。拒绝通用后台壳与奶油衬线的"知识工具制服"。
+      OWN-WORLD: 暖纸底 + 近黑墨 + 靛蓝制图墨 + 暖灰尺寸线；细网格纸底、尺寸标注、注释气泡、图号标题栏、注册标记；等宽字承载图号/度量。
+      STORY: 用户把集合当作一张张图纸页，标题栏给出图号与度量；文档是正文尺规线内的注释与规格，标注与度量始终可见。
+      FIRST VIEWPORT: 顶栏=制图标题栏（名称/图号/虚线标注）；主体=图纸网格上带渐变封面与规格条的"图纸卡片"。
+      FORM: 工程规格单方向（grounded index 4，seed 02b9c94c）。
+      FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+    -->
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

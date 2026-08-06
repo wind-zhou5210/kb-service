@@ -103,7 +103,7 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess, ex
       {conflictingFiles.length > 0 && (
         <div style={{
           marginBottom: 12, padding: '6px 12px', borderRadius: 6,
-          background: '#fff7e6', border: '1px solid #ffd591', fontSize: 12, color: '#d46b08',
+          background: 'var(--warning-tint)', border: '1px solid var(--warning-border)', fontSize: 12, color: 'var(--warning-text)',
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
           <WarningOutlined />
@@ -117,7 +117,7 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess, ex
         <Checkbox checked={overwriteMode} onChange={(e) => setOverwriteMode(e.target.checked)}>
           替换同名文档
         </Checkbox>
-        <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+        <span style={{ fontSize: 12, color: 'var(--ink-400)' }}>
           （选中后同文件名的文档将被覆盖，旧版本可追溯）
         </span>
       </div>

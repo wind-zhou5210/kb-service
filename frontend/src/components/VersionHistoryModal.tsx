@@ -3,6 +3,7 @@ import { Modal, Timeline, Button, Space, message, Tag } from 'antd'
 import { HistoryOutlined, EyeOutlined, RollbackOutlined, DeleteOutlined } from '@ant-design/icons'
 import { api } from '../api/client'
 import { formatSize, relativeTime } from '../utils/format'
+import MarkdownViewer from './MarkdownViewer'
 
 interface VersionInfo {
   id: number
@@ -27,6 +28,8 @@ interface Props {
 export default function VersionHistoryModal({ docId, currentVersion, open, onClose, onRestore }: Props) {
   const [versions, setVersions] = useState<VersionInfo[]>([])
   const [loading, setLoading] = useState(false)
+  // P0-1：版本内容应用内查看（替代裸白窗 window.open）
+  const [viewing, setViewing] = useState<{ v: VersionInfo; content: string } | null>(null)
 
   const loadVersions = async () => {
     setLoading(true)
@@ -47,11 +50,7 @@ export default function VersionHistoryModal({ docId, currentVersion, open, onClo
   const handleView = async (v: VersionInfo) => {
     try {
       const data = await api.getVersionContent(docId, v.version)
-      const win = window.open('', '_blank')
-      if (win) {
-        win.document.write(`<pre style="font-size:14px;padding:20px">${data.content}</pre>`)
-        win.document.close()
-      }
+      setViewing({ v, content: data.content })
     } catch {
       message.error('查看版本内容失败')
     }
@@ -96,6 +95,7 @@ export default function VersionHistoryModal({ docId, currentVersion, open, onClo
   }
 
   return (
+    <>
     <Modal
       title={<><HistoryOutlined style={{ marginRight: 8 }} />版本历史</>}
       open={open}
@@ -111,7 +111,7 @@ export default function VersionHistoryModal({ docId, currentVersion, open, onClo
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'flex-start',
-              background: v.version === currentVersion ? '#f0f5ff' : undefined,
+              background: v.version === currentVersion ? 'var(--accent-tint)' : undefined,
               padding: '8px 12px',
               borderRadius: 6,
               marginBottom: 4,
@@ -123,7 +123,7 @@ export default function VersionHistoryModal({ docId, currentVersion, open, onClo
                     <Tag color="blue" style={{ marginLeft: 8, fontSize: 11 }}>当前版本</Tag>
                   )}
                 </div>
-                <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 2 }}>
                   {formatSize(v.size)} · {relativeTime(v.created_at)}
                 </div>
               </div>
@@ -147,10 +147,37 @@ export default function VersionHistoryModal({ docId, currentVersion, open, onClo
         }))}
       />
       {versions.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', color: '#888', padding: 24 }}>
+        <div style={{ textAlign: 'center', color: 'var(--ink-400)', padding: 24 }}>
           暂无历史版本
         </div>
       )}
     </Modal>
+
+    {/* 版本内容查看：应用内渲染（md 用阅读器，html 用制图风格源码） */}
+    <Modal
+      title={<><EyeOutlined style={{ marginRight: 8 }} />版本 v{viewing?.v.version} 内容</>}
+      open={!!viewing}
+      onCancel={() => setViewing(null)}
+      width={780}
+      footer={null}
+    >
+      {viewing && (
+        <>
+          <div className="dim" style={{ marginBottom: 12 }}>
+            v{viewing.v.version} · {formatSize(viewing.v.size)} · {relativeTime(viewing.v.created_at)} · {viewing.v.filename}
+          </div>
+          {viewing.v.ext === '.md' ? (
+            <div style={{ maxHeight: '62vh', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+              <MarkdownViewer content={viewing.content} />
+            </div>
+          ) : (
+            <pre style={{ maxHeight: '62vh', overflow: 'auto', background: 'var(--ink-900)', color: '#E8E6E0', padding: 16, borderRadius: 6, fontSize: 12, lineHeight: 1.6, fontFamily: 'var(--mono)', margin: 0 }}>
+              {viewing.content}
+            </pre>
+          )}
+        </>
+      )}
+    </Modal>
+    </>
   )
 }

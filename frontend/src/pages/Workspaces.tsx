@@ -4,7 +4,7 @@ import { Button, Card, Row, Col, Modal, Input, Skeleton, message, Tooltip } from
 import { PlusOutlined, FolderOutlined, DeleteOutlined } from '@ant-design/icons'
 import { api, type Workspace } from '../api/client'
 import { useWorkspaceStore } from '../store/workspace'
-import { formatSize, relativeTime } from '../utils/format'
+import { formatSize, hashGradient, initials } from '../utils/format'
 import EmptyState from '../components/EmptyState'
 
 const { TextArea } = Input
@@ -51,13 +51,15 @@ export default function Workspaces() {
   }
 
   return (
-    <div className="page-container">
+    <div className="paper-grid" style={{ flex: 1, minHeight: '100%' }}>
+      <div className="page-container">
       {/* Header */}
       <div className="page-header">
         <div>
           <h1>工作空间</h1>
+          <div className="hint">按目录结构组织文件，支持 zip 整体上传，适合文件夹式知识库</div>
           <div className="sub">
-            {list.length} {list.length === 1 ? 'workspace' : 'workspaces'}
+            {list.length} 个工作空间
           </div>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
@@ -88,74 +90,29 @@ export default function Workspaces() {
           />
         </div>
       ) : (
-        /* Workspace grid */
+        /* Workspace grid —— 图纸卡：与集合卡同一制图语言 */
         <Row gutter={[20, 20]}>
           {list.map((ws) => (
             <Col xs={24} sm={12} md={8} lg={8} xl={6} key={ws.id}>
-              <Card
-                hoverable
-                className="ws-card"
-                onClick={() => navigate(`/workspaces/${ws.id}`)}
-                style={{ borderRadius: 8 }}
-                actions={[
-                  <Tooltip title="删除工作空间" key="delete">
-                    <DeleteOutlined onClick={(e) => handleDelete(ws, e)} />
-                  </Tooltip>,
-                ]}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 8,
-                      background: 'var(--subtle-bg)',
-                      border: '1px solid var(--border)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 18,
-                      color: 'var(--ink-500)',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <FolderOutlined />
+              <div className="col-card" onClick={() => navigate(`/workspaces/${ws.id}`)}>
+                <div className="cover" style={{ background: `linear-gradient(135deg, ${hashGradient(ws.name)[0]}, ${hashGradient(ws.name)[1]})` }}>
+                  <span className="cover-init">{initials(ws.name)}</span>
+                  <span className="cover-no">WS-{String(ws.id).padStart(3, '0')}</span>
+                </div>
+                <div className="body">
+                  <div className="title" style={{ marginBottom: 'var(--space-2)' }}>{ws.name}</div>
+                  <div className="desc" style={ws.description ? undefined : { color: 'var(--ink-400)' }}>
+                    {ws.description || '暂无描述'}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 600,
-                        color: 'var(--ink-900)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {ws.name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 'var(--text-base)',
-                        color: 'var(--ink-500)',
-                        marginTop: 'var(--space-1)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {ws.description || '暂无描述'}
-                    </div>
+                  <div className="title-strip">
+                    <span className="cell"><b>文件</b>{ws.file_count}</span>
+                    <span className="cell"><b>体积</b>{formatSize(ws.total_size)}</span>
+                    <Tooltip title="删除工作空间">
+                      <Button type="text" size="small" icon={<DeleteOutlined />} aria-label="删除工作空间" onClick={(e) => handleDelete(ws, e)} danger />
+                    </Tooltip>
                   </div>
                 </div>
-                <div style={{ marginTop: 'var(--space-3)', display: 'flex', gap: 'var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--ink-400)' }}>
-                  <span>{ws.file_count} 个文件</span>
-                  <span>{formatSize(ws.total_size)}</span>
-                </div>
-                <div style={{ marginTop: 'var(--space-1)', fontSize: 'var(--text-sm)', color: 'var(--ink-300)' }}>
-                  {relativeTime(ws.updated_at)}
-                </div>
-              </Card>
+              </div>
             </Col>
           ))}
         </Row>
@@ -185,6 +142,7 @@ export default function Workspaces() {
           />
         </div>
       </Modal>
+      </div>
     </div>
   )
 }

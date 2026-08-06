@@ -8,6 +8,8 @@ interface Props {
   src?: string
   /** fill 模式：iframe 高度 100% 填充父容器（用于全屏），否则用视口高度 */
   fill?: boolean
+  /** iframe 无障碍标题（读屏区分多个沙箱），默认「HTML 内容预览」 */
+  title?: string
 }
 
 /**
@@ -29,7 +31,7 @@ interface Props {
  * 闪变优化：iframe 在 load 事件前保持透明并显示占位，加载完成后淡入，
  * 避免内容切换/首次渲染时暴露未完成样式的中间态（FOUC）。
  */
-function HtmlSandboxInner({ html, src, fill }: Props) {
+function HtmlSandboxInner({ html, src, fill, title = 'HTML 内容预览' }: Props) {
   const [height, setHeight] = useState(600)
   const [loaded, setLoaded] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -66,34 +68,62 @@ function HtmlSandboxInner({ html, src, fill }: Props) {
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: fill ? '100%' : undefined }}>
-      {!loaded && (
-        <div
-          style={{
-            position: 'absolute', inset: 0, zIndex: 1,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--surface)',
-          }}
-        >
-          <Spin />
-        </div>
-      )}
-      <iframe
-        ref={iframeRef}
-        title="html-content"
-        sandbox="allow-scripts"
-        {...(src ? { src } : { srcDoc: html })}
-        referrerPolicy="no-referrer"
-        onLoad={() => setLoaded(true)}
+    <div
+      style={{
+        width: '100%',
+        height: fill ? '100%' : undefined,
+        display: 'flex',
+        flexDirection: 'column',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--r-md)',
+        overflow: 'hidden',
+        background: 'var(--surface)',
+      }}
+    >
+      {/* P2-6：制图规格条 —— 标明沙箱边界与净化语义 */}
+      <div
         style={{
-          width: '100%',
-          height: fill ? '100%' : `${height}px`,
-          border: 'none',
-          display: 'block',
-          opacity: loaded ? 1 : 0,
-          transition: 'opacity 0.18s var(--ease)',
+          padding: '3px 12px',
+          flexShrink: 0,
+          borderBottom: '1px solid var(--border)',
+          background: 'var(--subtle-bg)',
+          fontFamily: 'var(--mono)',
+          fontSize: 10,
+          color: 'var(--ink-500)',
+          letterSpacing: '0.05em',
         }}
-      />
+      >
+        HTML · 沙箱预览 · 净化隔离
+      </div>
+      <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+        {!loaded && (
+          <div
+            style={{
+              position: 'absolute', inset: 0, zIndex: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'var(--surface)',
+            }}
+          >
+            <Spin />
+          </div>
+        )}
+        <iframe
+          ref={iframeRef}
+          title={title}
+          sandbox="allow-scripts"
+          {...(src ? { src } : { srcDoc: html })}
+          referrerPolicy="no-referrer"
+          onLoad={() => setLoaded(true)}
+          style={{
+            width: '100%',
+            height: fill ? '100%' : `${height}px`,
+            border: 'none',
+            display: 'block',
+            opacity: loaded ? 1 : 0,
+            transition: 'opacity 0.18s var(--ease)',
+          }}
+        />
+      </div>
     </div>
   )
 }

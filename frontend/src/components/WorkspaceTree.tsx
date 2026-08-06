@@ -30,10 +30,10 @@ function toAntdTree(nodes: WorkspaceTreeNode[], parentPath = ''): any[] {
     }
     const isMd = node.name.endsWith('.md')
     const icon = node.is_asset
-      ? <FileOutlined style={{ color: '#999' }} />
+      ? <FileOutlined style={{ color: 'var(--ink-400)' }} />
       : isMd
-        ? <FileTextOutlined style={{ color: '#1677ff' }} />
-        : <Html5Outlined style={{ color: '#fa8c16' }} />
+        ? <FileTextOutlined style={{ color: 'var(--md-color)' }} />
+        : <Html5Outlined style={{ color: 'var(--html-color)' }} />
 
     return {
       key: `file:${node.path}`,
@@ -104,8 +104,6 @@ export default function WorkspaceTree({ treeData, selectedFile, onSelect, onRepl
   const menuItems: MenuProps['items'] = [
     { key: 'copy', label: '复制链接' },
     ...(onReplaceFile ? [{ key: 'replace', label: '替换文件' }] : []),
-    { key: 'rename', label: '重命名', disabled: true },
-    { key: 'move', label: '移动', disabled: true },
     onDeleteFile
       ? { key: 'delete', label: '删除', danger: true }
       : { key: 'delete', label: '删除', danger: true, disabled: true },

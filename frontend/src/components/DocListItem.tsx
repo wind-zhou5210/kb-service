@@ -2,8 +2,6 @@ import { FileTextOutlined, Html5Outlined, ShareAltOutlined } from '@ant-design/i
 import { formatSize, relativeTime } from '../utils/format'
 import type { DocumentItem } from '../api/client'
 
-const TAG_COLORS = ['#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#EC4899']
-
 interface Props {
   doc: DocumentItem
   active: boolean
@@ -24,41 +22,37 @@ export default function DocListItem({ doc, active, onClick, dragHandleProps, onS
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <div className="doc-name">{doc.title}</div>
           {(doc.current_version ?? 1) > 1 && (
-            <span style={{
-              fontSize: 10, color: 'var(--color-text-tertiary)',
-              background: 'var(--color-border-light)',
-              padding: '0 4px', borderRadius: 3,
-              lineHeight: '16px', flexShrink: 0,
-            }}>
-              v{doc.current_version}
-            </span>
+            <span className="doc-tag" title="版本号">v{doc.current_version}</span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-          <span style={{ fontSize: 11, color: 'var(--ink-400)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, minWidth: 0 }}>
+          <span style={{ fontSize: 11, color: 'var(--ink-400)', flexShrink: 0 }}>
             {formatSize(doc.size)} · {relativeTime(doc.created_at)}
           </span>
           {tags.length > 0 && (
-            <span style={{ display: 'inline-flex', gap: 2, marginLeft: 2 }}>
-              {tags.slice(0, 3).map((t, i) => (
-                <span
-                  key={t}
-                  style={{
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: TAG_COLORS[i % TAG_COLORS.length],
-                    display: 'inline-block',
-                  }}
-                />
+            <span style={{ display: 'inline-flex', gap: 3, marginLeft: 2, overflow: 'hidden' }}>
+              {tags.slice(0, 2).map((t) => (
+                <span key={t} className="doc-tag" title={t}>{t}</span>
               ))}
+              {tags.length > 2 && <span className="doc-tag" title={tags.slice(2).join('、')}>+{tags.length - 2}</span>}
             </span>
           )}
         </div>
       </div>
       {onShare && (
-        <ShareAltOutlined
+        <button
+          type="button"
           className="doc-share-btn"
+          aria-label="分享文档"
+          title="分享文档"
           onClick={(e) => { e.stopPropagation(); onShare(doc) }}
-        />
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <ShareAltOutlined style={{ fontSize: 13 }} />
+        </button>
       )}
     </div>
   )

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { Button, Spin, Dropdown, Modal, Input, Tag, Space, Skeleton, Tooltip, Select, message, Row, Col, Drawer } from 'antd'
 import {
@@ -23,6 +23,7 @@ import EmptyState from '../components/EmptyState'
 import SubNav from '../components/SubNav'
 import { formatSize, relativeTime } from '../utils/format'
 import { copyToClipboard } from '../utils/clipboard'
+import { trackRecent, updateRecentScroll, getRecent } from '../utils/recent'
 import { useIsMobile } from '../hooks/useMediaQuery'
 import { useCollectionStore } from '../store/collection'
 
@@ -52,7 +53,7 @@ function SortableDoc({ doc, active, onClick, onShare }: {
 export default function CollectionDetail() {
   const { id } = useParams<{ id: string }>()
   const colId = Number(id)
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [collection, setCollection] = useState<Collection | null>(null)
   const [docs, setDocs] = useState<DocumentItem[]>([])
@@ -81,6 +82,47 @@ export default function CollectionDetail() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   // 面包屑：上报当前集合
   const setCurrent = useCollectionStore((s) => s.setCurrent)
+  // 最近阅读埋点：持最新 collection 引用，避免 viewDoc 闭包旧快照
+  const collectionRef = useRef<Collection | null>(null)
+
+  // P2-5：文档排序防抖批量保存
+  const docSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // M-1：卸载时清掉未触发的防抖 timer
+  useEffect(() => () => { if (docSaveTimerRef.current) clearTimeout(docSaveTimerRef.current) }, [])
+
+  // 阅读体验：进度条 + 切换文档回到顶部 + 滚动位置记忆
+  const mainRef = useRef<HTMLElement>(null)
+  const [readProgress, setReadProgress] = useState(0)
+  const scrollRatioRef = useRef(0)
+  const updateProgress = useCallback(() => {
+    const el = mainRef.current
+    if (!el) return
+    const max = el.scrollHeight - el.clientHeight
+    setReadProgress(max <= 0 ? 100 : Math.min(100, Math.round((el.scrollTop / max) * 100)))
+    scrollRatioRef.current = max <= 0 ? 0 : Math.min(1, el.scrollTop / max)
+  }, [])
+  useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTo({ top: 0 })
+  }, [selected])
+  useEffect(() => { updateProgress() }, [mdContent, htmlContent, updateProgress])
+  // P1-5：离开文档时记录滚动比例（供「继续阅读」恢复）
+  useEffect(() => {
+    const prev = selected
+    return () => {
+      const col = collectionRef.current
+      if (prev && col) updateRecentScroll('collection', prev.id, scrollRatioRef.current)
+    }
+  }, [selected])
+  // P1-5：继续阅读 —— 内容加载后恢复到上次位置
+  useEffect(() => {
+    if (!selected || contentLoading) return
+    const rec = getRecent().find((r) => r.kind === 'collection' && r.id === selected.id)
+    if (rec?.scrollRatio && mainRef.current) {
+      const el = mainRef.current
+      const top = rec.scrollRatio * (el.scrollHeight - el.clientHeight)
+      if (top > 0) el.scrollTo({ top })
+    }
+  }, [selected, mdContent, htmlContent, contentLoading])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -101,6 +143,7 @@ export default function CollectionDetail() {
       const cols = await api.listCollections()
       const col = cols.find((c) => c.id === colId) ?? null
       setCollection(col)
+      collectionRef.current = col
       setCurrent(col)
       return list
     } finally { setLoading(false) }
@@ -113,6 +156,10 @@ export default function CollectionDetail() {
 
   const viewDoc = useCallback(async (doc: DocumentItem) => {
     setSelected(doc); setTocItems([]); setContentLoading(true)
+    const col = collectionRef.current
+    if (col) {
+      trackRecent({ id: doc.id, kind: 'collection', title: doc.title, ext: doc.ext, sourceId: col.id, sourceName: col.name })
+    }
     try {
       if (doc.ext === '.md') {
         setMdContent(await api.getRaw(doc.id)); setHtmlContent('')
@@ -130,14 +177,17 @@ export default function CollectionDetail() {
     if (isMobile) setDrawerOpen(false)
   }
 
-  // 从搜索结果跳转时自动选中文档
+  // 从搜索结果跳转时自动选中文档（I-2：消费后清理 ?doc=，避免后续 reload 拽回）
   useEffect(() => {
     const docParam = searchParams.get('doc')
     if (loading || !docParam) return
     const docId = Number(docParam)
     if (!docId) return
     const doc = docs.find(d => d.id === docId)
-    if (doc) viewDoc(doc)
+    if (doc) {
+      setSearchParams({}, { replace: true })
+      viewDoc(doc)
+    }
   }, [loading, docs, searchParams, viewDoc])
 
   const allTags = useMemo(() => {
@@ -190,19 +240,29 @@ export default function CollectionDetail() {
     }
   }
 
-  const handleDragEnd = async (e: DragEndEvent) => {
+  const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e
     if (!over || active.id === over.id) return
     const oldIndex = docs.findIndex((d) => d.id === active.id)
     const newIndex = docs.findIndex((d) => d.id === over.id)
     if (oldIndex < 0 || newIndex < 0) return
+    const prev = [...docs]
     const reordered = [...docs]
     const [moved] = reordered.splice(oldIndex, 1)
     reordered.splice(newIndex, 0, moved)
     setDocs(reordered)
-    await Promise.all(
-      reordered.map((d, i) => api.updateDocument(d.id, { sort_order: i }))
-    )
+
+    if (docSaveTimerRef.current) clearTimeout(docSaveTimerRef.current)
+    message.loading({ content: '保存排序中…', key: 'doc-sort', duration: 0 })
+    docSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await Promise.all(reordered.map((d, i) => api.updateDocument(d.id, { sort_order: i })))
+        message.success({ content: '排序已保存', key: 'doc-sort' })
+      } catch {
+        message.error({ content: '保存排序失败，已恢复原顺序', key: 'doc-sort' })
+        setDocs(prev)
+      }
+    }, 600)
   }
 
   const handleDocShare = async (doc: DocumentItem) => {
@@ -248,7 +308,23 @@ export default function CollectionDetail() {
       { key: 'download', label: '下载', icon: <DownloadOutlined />, onClick: () => window.open(`/api/documents/${doc.id}/download`) },
       { key: 'move', label: '移动到...', icon: <SwapOutlined />, onClick: () => openMoveModal(doc) },
       { key: 'versions', label: '版本历史', icon: <HistoryOutlined />, onClick: () => setVersionHistoryDoc(doc) },
-      ...(doc.share_token ? [{ key: 'revokeShare', label: '取消分享', icon: <StopOutlined />, onClick: async () => { await api.revokeDocShare(doc.id); message.success('已取消分享'); loadDocs() } }] : []),
+      ...(doc.share_token ? [{
+        key: 'revokeShare', label: '取消分享', icon: <StopOutlined />,
+        onClick: () => {
+          Modal.confirm({
+            title: '取消分享',
+            content: '取消后，已分享的链接将立即失效，所有访问者将无法再查看该文档。确认取消？',
+            okType: 'danger',
+            okText: '取消分享',
+            cancelText: '保留',
+            onOk: async () => {
+              await api.revokeDocShare(doc.id)
+              message.success('已取消分享')
+              loadDocs()
+            },
+          })
+        },
+      }] : []),
       { type: 'divider' as const },
       { key: 'delete', label: '删除', icon: <DeleteOutlined />, danger: true, onClick: () => handleDelete(doc) },
     ],
@@ -365,7 +441,7 @@ export default function CollectionDetail() {
       )}
 
       {/* 内容区 */}
-      <main style={{ flex: 1, overflow: 'auto', background: 'var(--surface)' }}>
+      <main ref={mainRef} onScroll={updateProgress} style={{ flex: 1, overflow: 'auto', background: 'var(--surface)' }}>
         {!selected ? (
           <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
             <EmptyState icon={<FileTextOutlined />} title="选择文件开始阅读" description="从左侧列表选择一份文档" />
@@ -381,12 +457,18 @@ export default function CollectionDetail() {
               }}>
                 <Space wrap>
                   <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-900)' }}>{selected.title}</span>
-                  <Tag color={isMd ? 'blue' : 'orange'} style={{ borderRadius: 4, fontSize: 11 }}>{selected.ext}</Tag>
-                  {selectedTags.map((t, i) => (
+                  <Tag color={isMd ? 'var(--md-color)' : 'var(--html-color)'} style={{ borderRadius: 4, fontSize: 11 }}>{selected.ext}</Tag>
+                  {selectedTags.slice(0, 3).map((t, i) => (
                     <Tag key={t} color={TAG_COLORS[i % TAG_COLORS.length]} style={{ borderRadius: 4, fontSize: 11 }}>{t}</Tag>
                   ))}
+                  {selectedTags.length > 3 && (
+                    <Tag style={{ borderRadius: 4, fontSize: 11 }} title={selectedTags.slice(3).join('、')}>+{selectedTags.length - 3}</Tag>
+                  )}
                   <span style={{ fontSize: 11, color: 'var(--ink-400)', fontFamily: 'var(--mono)' }}>
                     {formatSize(selected.size)} · {relativeTime(selected.updated_at)}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--mono)', fontWeight: 500 }} title="阅读进度">
+                    {readProgress}%
                   </span>
                 </Space>
                 <Space>
@@ -400,11 +482,16 @@ export default function CollectionDetail() {
                     <Button type="text" size="small" icon={<MoreOutlined />} />
                   </Dropdown>
                 </Space>
+                {/* 阅读进度条：transform: scaleX 避免布局抖动 */}
+                <div style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, background: 'var(--border)', pointerEvents: 'none' }}>
+                  <div style={{ transform: `scaleX(${readProgress / 100})`, transformOrigin: 'left center', height: '100%', background: 'var(--accent)', transition: 'transform 0.12s linear' }} />
+                </div>
               </div>
 
               {selected.note && (
-                <div style={{ padding: '8px 32px', background: 'var(--subtle-bg)', borderBottom: '1px solid var(--subtle-border)', fontSize: 12, color: 'var(--ink-500)' }}>
-                  📝 {selected.note}
+                <div style={{ padding: '6px 32px', background: 'var(--accent-tint)', borderBottom: '1px solid var(--subtle-border)', fontSize: 12, color: 'var(--ink-600)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--accent)', letterSpacing: '0.05em', flexShrink: 0 }}>备注</span>
+                  {selected.note}
                 </div>
               )}
 
@@ -413,7 +500,7 @@ export default function CollectionDetail() {
               ) : isMd ? (
                 <MarkdownViewer content={mdContent} onTocReady={handleTocReady} />
               ) : (
-                <div style={{ padding: 'var(--space-6)' }}><HtmlSandbox html={htmlContent} /></div>
+                <div style={{ padding: 'var(--space-6)' }}><HtmlSandbox html={htmlContent} title="文档 HTML 预览" /></div>
               )}
             </div>
 
@@ -443,7 +530,7 @@ export default function CollectionDetail() {
             {isMd ? (
               <MarkdownViewer content={mdContent} />
             ) : (
-              <div style={{ height: '100%', padding: 'var(--space-6)' }}><HtmlSandbox html={htmlContent} fill /></div>
+              <div style={{ height: '100%', padding: 'var(--space-6)' }}><HtmlSandbox html={htmlContent} fill title="文档全屏预览" /></div>
             )}
           </div>
         </div>
