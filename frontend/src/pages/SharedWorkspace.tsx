@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Spin, Skeleton, message, Drawer, Button } from 'antd'
-import { FolderOutlined, LockOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined } from '@ant-design/icons'
+import { FolderOutlined, LockOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined, DownloadOutlined } from '@ant-design/icons'
 import { api, type Workspace, type WorkspaceTreeNode } from '../api/client'
 import { formatSize } from '../utils/format'
 import WorkspaceTree from '../components/WorkspaceTree'
@@ -160,6 +160,14 @@ export default function SharedWorkspace() {
         <span style={{ fontSize: 11, color: 'var(--ink-300)', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <LockOutlined /> 只读分享
         </span>
+        <div style={{ flex: 1 }} />
+        <Button
+          size="small"
+          icon={<DownloadOutlined />}
+          href={`/api/workspaces/share/${token}/download`}
+        >
+          下载全部
+        </Button>
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
