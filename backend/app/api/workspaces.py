@@ -231,6 +231,47 @@ async def serve_shared_file(
     return Response(content=content, media_type=mime_type)
 
 
+@router.get("/share/{token}/download")
+async def download_shared_workspace(
+    token: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """通过分享令牌下载工作空间全部文件（ZIP 打包，无需认证）。"""
+    ws = (await session.execute(
+        select(Workspace).where(Workspace.share_token == token)
+    )).scalars().first()
+    if not ws:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "分享不存在或已失效")
+
+    files = (await session.execute(
+        select(WorkspaceFile).where(WorkspaceFile.workspace_id == ws.id)
+    )).scalars().all()
+    if not files:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "工作空间为空")
+
+    fd, tmp_path = tempfile.mkstemp(suffix=".zip")
+    os.close(fd)
+    try:
+        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in files:
+                disk_path = _safe_join(ws.storage_path, f.path)
+                if not os.path.isfile(disk_path):
+                    continue
+                zf.write(disk_path, arcname=f.path)
+    except BaseException:
+        os.unlink(tmp_path)
+        raise
+
+    download_name = _sanitize_filename(ws.name) or f"workspace-{ws.id}"
+    encoded = quote(f"{download_name}.zip")
+    return FileResponse(
+        tmp_path,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+        background=BackgroundTask(os.unlink, tmp_path),
+    )
+
+
 # ─── Workspace CRUD ────────────────────────────────────────────────
 
 @router.get("")
