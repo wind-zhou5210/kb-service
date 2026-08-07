@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Spin, Tag, Space, Empty } from 'antd'
+import { Spin, Tag, Space, Empty, Button } from 'antd'
+import { DownloadOutlined } from '@ant-design/icons'
 import { api } from '../api/client'
 import MarkdownViewer from '../components/MarkdownViewer'
 import HtmlSandbox from '../components/HtmlSandbox'
@@ -60,6 +61,13 @@ export default function SharedDocument() {
             {formatSize(doc.size)} · {relativeTime(doc.created_at)} · 只读分享
           </span>
         </Space>
+        <Button
+          size="small"
+          icon={<DownloadOutlined />}
+          href={`/api/share/doc/${token}/download`}
+        >
+          下载
+        </Button>
       </div>
 
       {isMd ? (

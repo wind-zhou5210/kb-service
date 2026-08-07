@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Spin, Tag, Space, Button, Drawer, Empty } from 'antd'
-import { FileTextOutlined, Html5Outlined, FolderOutlined, MenuOutlined } from '@ant-design/icons'
+import { FileTextOutlined, Html5Outlined, FolderOutlined, MenuOutlined, DownloadOutlined } from '@ant-design/icons'
 import { api, type Collection, type DocumentItem } from '../api/client'
 import MarkdownViewer from '../components/MarkdownViewer'
 import HtmlSandbox from '../components/HtmlSandbox'
@@ -114,6 +114,14 @@ export default function SharedCollection() {
                 {formatSize(doc.size)}
               </div>
             </div>
+            <a
+              href={`/api/share/${token}/download/${doc.id}`}
+              onClick={(e) => e.stopPropagation()}
+              style={{ color: 'var(--ink-400)', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center' }}
+              title="下载文件"
+            >
+              <DownloadOutlined style={{ fontSize: 13 }} />
+            </a>
           </div>
         ))}
       </div>
@@ -130,6 +138,13 @@ export default function SharedCollection() {
           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-900)' }}>{collection.name}</span>
         )}
         <div style={{ flex: 1 }} />
+        <Button
+          size="small"
+          icon={<DownloadOutlined />}
+          href={`/api/share/${token}/download`}
+        >
+          下载全部
+        </Button>
         <span style={{ fontSize: 11, color: 'var(--ink-300)', fontFamily: 'var(--mono)', flexShrink: 0 }}>只读分享</span>
       </div>
 

@@ -1,7 +1,9 @@
 """公开文档分享路由：无需鉴权，通过 share_token 只读访问单个文档。"""
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -37,3 +39,26 @@ async def get_shared_document(
         },
         "ext": doc.ext, "content": content,
     }
+
+
+@router.get("/{token}/download")
+async def download_shared_document(
+    token: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """通过分享令牌下载单个文档原始文件。"""
+    doc = (await session.execute(
+        select(Document).where(Document.share_token == token)
+    )).scalars().first()
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "分享链接无效或已失效")
+    data = await storage.read(doc.content_sha1)
+    media = "text/markdown" if doc.ext == ".md" else "text/html"
+    encoded_filename = quote(doc.filename)
+    return Response(
+        content=data,
+        media_type=media,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+        },
+    )
