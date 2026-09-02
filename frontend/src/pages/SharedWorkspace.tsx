@@ -22,6 +22,12 @@ export default function SharedWorkspace() {
   const [mdContent, setMdContent] = useState('')
   const [htmlSrc, setHtmlSrc] = useState('')
   const [contentLoading, setContentLoading] = useState(false)
+  // 文件内锚点：进入时从 URL hash（#锚点）捕获，切换文件时清除
+  const [fileAnchor, setFileAnchor] = useState(() => {
+    const h = window.location.hash
+    if (!h) return null
+    try { return decodeURIComponent(h.slice(1)) } catch { return h.slice(1) }
+  })
   // 侧栏收起状态：持久化到 localStorage，刷新后保持（仅桌面端）
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1')
   // 移动端：目录树改为 Drawer 呈现
@@ -47,8 +53,12 @@ export default function SharedWorkspace() {
       ])
       setWorkspace(ws)
       setTree(treeData)
-      // Auto-select first file
-      if (!selectedFile && treeData.length > 0) {
+      // 深链：?file= 命中即选中（hasFile 校验，防非法/失效路径）；否则回退第一个文件。
+      // 仅在首次加载时消费（闭包捕获初始 URL），后续地址栏由下方同步 effect 维护
+      const fileParam = new URLSearchParams(window.location.search).get('file')
+      if (fileParam && hasFile(treeData, fileParam)) {
+        setSelectedFile(fileParam)
+      } else if (!selectedFile && treeData.length > 0) {
         const first = findFirstFile(treeData)
         if (first) setSelectedFile(first)
       }
@@ -58,6 +68,17 @@ export default function SharedWorkspace() {
   }, [token])
 
   useEffect(() => { load() }, [load])
+
+  // 深链同步：切换文件时更新地址栏 ?file=，随时可从地址栏复制传播"当前文件"链接。
+  // 用 replaceState 直改 URL（保留 hash、replace 不污染历史栈），不经 react-router
+  // 导航，避免触发组件重加载
+  useEffect(() => {
+    if (!selectedFile) return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('file') === selectedFile) return
+    params.set('file', selectedFile)
+    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}${window.location.hash}`)
+  }, [selectedFile])
 
   // Load file content when selectedFile changes
   useEffect(() => {
@@ -74,11 +95,31 @@ export default function SharedWorkspace() {
         .catch(() => message.error('加载文件失败'))
         .finally(() => setContentLoading(false))
     } else {
-      setHtmlSrc(`/api/workspaces/share/${token}/serve/${selectedFile}`)
+      // 文件内锚点：拼到 iframe src 的 hash，加载后浏览器原生滚动定位
+      setHtmlSrc(`/api/workspaces/share/${token}/serve/${selectedFile}${fileAnchor ? `#${fileAnchor}` : ''}`)
       setMdContent('')
       setContentLoading(false)
     }
-  }, [selectedFile, token])
+  }, [selectedFile, token, fileAnchor])
+
+  // MD 文件内锚点：内容渲染完成后滚动到目标标题（rehype-slug 已为标题生成 id）
+  useEffect(() => {
+    if (!fileAnchor || !mdContent) return
+    if (!selectedFile?.endsWith('.md')) return
+    // 渲染/高亮完成后再定位，避免目标元素尚未挂载
+    const t = setTimeout(() => {
+      document.getElementById(fileAnchor)?.scrollIntoView({ behavior: 'smooth' })
+    }, 120)
+    return () => clearTimeout(t)
+  }, [fileAnchor, mdContent, selectedFile])
+
+  // 清除文件内锚点（state + URL hash），切换文件时调用，避免锚点串到别的文件
+  const clearFileAnchor = useCallback(() => {
+    setFileAnchor(null)
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }, [])
 
   // Auto-refresh when navigate event fires from iframe
   useEffect(() => {
@@ -88,14 +129,20 @@ export default function SharedWorkspace() {
       if (typeof path === 'string') {
         const servePrefix = `/api/workspaces/share/${token}/serve/`
         if (path.includes(servePrefix)) {
-          const filePath = path.split(servePrefix)[1]
-          if (filePath) setSelectedFile(decodeURIComponent(filePath))
+          let filePath = path.split(servePrefix)[1]
+          if (filePath) {
+            // iframe 内导航可能带 hash：剥离后由浏览器原生滚动，避免污染文件路径导致树高亮失配
+            const hashIdx = filePath.indexOf('#')
+            if (hashIdx >= 0) filePath = filePath.slice(0, hashIdx)
+            clearFileAnchor()
+            setSelectedFile(decodeURIComponent(filePath))
+          }
         }
       }
     }
     window.addEventListener('ws-navigate', handler as EventListener)
     return () => window.removeEventListener('ws-navigate', handler as EventListener)
-  }, [token])
+  }, [token, clearFileAnchor])
 
   if (loading) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Spin /></div>
@@ -116,6 +163,7 @@ export default function SharedWorkspace() {
 
   // 目录树选中：移动端选中后自动关闭 Drawer
   const handleSelectFile = (path: string) => {
+    if (path !== selectedFile) clearFileAnchor()
     setSelectedFile(path)
     if (isMobile) setDrawerOpen(false)
   }
@@ -231,4 +279,13 @@ function findFirstFile(nodes: WorkspaceTreeNode[]): string | null {
     }
   }
   return null
+}
+
+// Helper: 目录树中是否存在指定文件路径（深链校验，防非法/失效路径）
+function hasFile(nodes: WorkspaceTreeNode[], path: string): boolean {
+  for (const node of nodes) {
+    if (node.type === 'file' && node.path === path) return true
+    if (node.children && hasFile(node.children, path)) return true
+  }
+  return false
 }
