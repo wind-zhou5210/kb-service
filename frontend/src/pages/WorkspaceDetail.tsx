@@ -37,6 +37,8 @@ export default function WorkspaceDetail() {
   const [shareToken, setShareToken] = useState<string | null>(null)
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
+  // 当前文件直链：分享弹窗内可选复制，打开后直达正在预览的文件（无选中文件时不展示）
+  const [fileShareUrl, setFileShareUrl] = useState('')
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
@@ -287,12 +289,22 @@ export default function WorkspaceDetail() {
       const { share_token } = await api.createWorkspaceShare(wsId)
       setShareToken(share_token)
       setShareUrl(`${window.location.origin}/share/workspace/${share_token}`)
+      // 用 ref 读最新选中路径，避免闭包旧快照
+      setFileShareUrl(selectedFileRef.current
+        ? `${window.location.origin}/share/workspace/${share_token}?file=${encodeURIComponent(selectedFileRef.current)}`
+        : '')
       setShareModalOpen(true)
     } catch { message.error('生成分享链接失败') }
   }
 
   const copyShareUrl = async () => {
     const ok = await copyToClipboard(shareUrl)
+    if (ok) message.success('链接已复制')
+    else message.warning('复制失败')
+  }
+
+  const copyFileShareUrl = async () => {
+    const ok = await copyToClipboard(fileShareUrl)
     if (ok) message.success('链接已复制')
     else message.warning('复制失败')
   }
@@ -521,6 +533,14 @@ export default function WorkspaceDetail() {
               取消分享后链接将立即失效；更新内容不会影响已生成的链接。
             </p>
             <Input.Search value={shareUrl} readOnly enterButton="复制" onSearch={copyShareUrl} />
+            {fileShareUrl && (
+              <>
+                <p style={{ fontSize: 12, color: 'var(--ink-500)', marginTop: 16, marginBottom: 12 }}>
+                  当前文件直链 — 打开后直接定位到正在预览的文件：
+                </p>
+                <Input.Search value={fileShareUrl} readOnly enterButton="复制" onSearch={copyFileShareUrl} />
+              </>
+            )}
           </>
         ) : (
           <p>正在生成分享链接...</p>
