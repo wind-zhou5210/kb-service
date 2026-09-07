@@ -126,6 +126,19 @@ export const api = {
       }).then((r) => r.data)
   },
 
+  // 文档包上传：zip（md/html 入口 + 图片资产）
+  uploadPackage: (colId: number, file: File, mode?: 'append' | 'overwrite') => {
+    const form = new FormData()
+    form.append('file', file)
+    const params: Record<string, string> = {}
+    if (mode === 'overwrite') params.mode = 'overwrite'
+    return client.post<{ created: DocumentItem[]; updated: DocumentItem[]; duplicated: string[] }>(
+      `/collections/${colId}/documents/package`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        params,
+      }).then((r) => r.data)
+  },
+
   getDocument: (id: number) =>
     client.get<DocumentItem>(`/documents/${id}`).then((r) => r.data),
 

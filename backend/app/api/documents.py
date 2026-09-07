@@ -1,7 +1,10 @@
 """文件（Document）路由：上传、查看原文、下载、CRUD。"""
+import io
+import mimetypes
 import os
 import re
 import secrets
+import zipfile
 from datetime import datetime, timezone
 from typing import Annotated
 from urllib.parse import quote
@@ -23,14 +26,16 @@ from sqlmodel import func, select
 
 from app.core.config import settings
 from app.core.database import get_session
-from app.core.security import CurrentUser
-from app.models import Collection, Document, DocumentVersion, FileBlob
-from app.services.render import wrap_html_for_srcdoc
+from app.core.security import CurrentUser, CurrentUserFromQuery
+from app.models import Collection, Document, DocumentAsset, DocumentVersion, FileBlob
+from app.services.render import rewrite_md_images, wrap_html_for_srcdoc
 from app.storage import storage
 
 router = APIRouter(tags=["documents"])
 
 ALLOWED = {e.lower() for e in settings.allowed_exts}
+PACKAGE_DOC_EXTS = {".md", ".html", ".htm"}
+ASSET_EXTS = {e.lower() for e in settings.package_asset_exts}
 
 
 def _ext(filename: str) -> str:
@@ -44,6 +49,62 @@ def _extract_text(data: bytes, ext: str) -> str:
         raw = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', raw, flags=re.DOTALL | re.IGNORECASE)
         raw = re.sub(r'<[^>]+>', ' ', raw)
     return re.sub(r'\s+', ' ', raw).strip()
+
+
+def _package_skip(name: str) -> bool:
+    """跳过包内隐藏文件/目录与 node_modules（与工作空间规则一致）。"""
+    parts = name.replace("\\", "/").split("/")
+    return any(p.startswith(".") or p == "node_modules" for p in parts)
+
+
+async def _has_assets(session: AsyncSession, doc_id: int) -> bool:
+    """文档是否挂有资产（有则 md serve 时才做图片重写，避免对旧文档行为变化）。"""
+    row = (await session.execute(
+        select(DocumentAsset.id).where(DocumentAsset.document_id == doc_id).limit(1)
+    )).first()
+    return row is not None
+
+
+async def _set_document_assets(
+    session: AsyncSession,
+    doc_id: int,
+    asset_specs: list[tuple[str, str, int, str]],
+) -> None:
+    """替换文档资产集：释放旧行与 blob 引用，插入新行并加引用。
+
+    asset_specs: [(包内相对路径, sha1, size, mime)]。新旧交集的 sha1 不删物理文件。
+    """
+    new_sha1s = {s[1] for s in asset_specs}
+    blob_cache: dict[str, FileBlob] = {}
+    old = (await session.execute(
+        select(DocumentAsset).where(DocumentAsset.document_id == doc_id)
+    )).scalars().all()
+    for row in old:
+        blob = await session.get(FileBlob, row.sha1)
+        if blob:
+            blob.ref_count -= 1
+            if blob.ref_count <= 0 and row.sha1 not in new_sha1s:
+                await session.delete(blob)
+                await storage.delete(row.sha1)
+        await session.delete(row)
+    # 先 flush 删除：SQLAlchemy 默认 inserts 先于 deletes，
+    # 不 flush 则同键新行 INSERT 与 pending 旧行冲突（UNIQUE 约束）
+    if old:
+        await session.flush()
+    for path, sha1, size, mime in asset_specs:
+        blob = blob_cache.get(sha1)
+        if blob is None:
+            blob = await session.get(FileBlob, sha1)
+        if blob:
+            blob.ref_count += 1
+        else:
+            blob = FileBlob(sha1=sha1, ext=os.path.splitext(path)[1].lower(), size=size, ref_count=1)
+            session.add(blob)
+        # 同批次同 sha1 的 pending 行 session.get 取不到，需内存缓存避免重复 INSERT
+        blob_cache[sha1] = blob
+        session.add(DocumentAsset(
+            document_id=doc_id, path=path, sha1=sha1, size=size, mime_type=mime,
+        ))
 
 
 @router.get("/collections/{col_id}/documents")
@@ -136,11 +197,7 @@ async def upload_document(
             )
             session.add(old_ver)
 
-            # 旧 blob ref_count++（DocumentVersion 引用它）
-            old_blob = await session.get(FileBlob, existing_doc.content_sha1)
-            if old_blob:
-                old_blob.ref_count += 1
-
+            # 旧 blob 引用转移：文档原持有的一份引用转归版本行，不重复 +1
             # 新 blob 引用
             blob = await session.get(FileBlob, sha1)
             if blob:
@@ -217,6 +274,187 @@ async def upload_document(
     )
 
 
+@router.post("/collections/{col_id}/documents/package", status_code=status.HTTP_201_CREATED)
+async def upload_document_package(
+    col_id: int,
+    file: Annotated[UploadFile, File(...)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: CurrentUser,
+    mode: Annotated[str, Query()] = "append",
+):
+    """上传文档包（zip：md/html 入口 + 图片资产）。
+
+    每个 md/html 入口各建一个 Document；包内全部图片资产挂到每个文档下
+    （path 为包内相对路径），md 相对图片引用在 serve 期重写为资产端点。
+    """
+    col = await session.get(Collection, col_id)
+    if not col:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "集合不存在")
+
+    data = await file.read()
+    if len(data) > settings.package_max_upload_bytes:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"包过大（上限 {settings.package_max_upload_mb}MB）",
+        )
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "不是有效的 zip 文件")
+
+    # zip 炸弹防护：解压前校验累计未压缩大小
+    if sum(i.file_size for i in zf.infolist()) > settings.package_max_upload_bytes:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"包解压后大小超限（上限 {settings.package_max_upload_mb}MB）",
+        )
+
+    doc_entries: list[tuple[str, bytes]] = []
+    asset_specs: list[tuple[str, str, int, str]] = []
+    with zf:
+        for info in zf.infolist():
+            if info.is_dir():
+                continue
+            norm = os.path.normpath(info.filename)
+            if norm.startswith("..") or os.path.isabs(norm) or _package_skip(norm):
+                continue
+            path = norm.replace("\\", "/")
+            ext = os.path.splitext(path)[1].lower()
+            if ext in PACKAGE_DOC_EXTS:
+                doc_entries.append((path, zf.read(info)))
+            elif ext in ASSET_EXTS:
+                content = zf.read(info)
+                sha1, size = await storage.save(content, ext)
+                mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
+                asset_specs.append((path, sha1, size, mime))
+    if not doc_entries:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "包内未找到 markdown/html 文档条目"
+        )
+
+    # 预查集合内已有文档 sha1 用于去重
+    existing_rows = (await session.execute(
+        select(Document.content_sha1).where(Document.collection_id == col_id)
+    )).all()
+    existing_sha1s: set[str] = {row[0] for row in existing_rows}
+
+    created: list[Document] = []
+    updated: list[Document] = []
+    duplicated: list[str] = []
+    seen_in_batch: set[str] = set()
+    file_data_list: list[tuple[bytes, str]] = []
+
+    for path, content in doc_entries:
+        ext = os.path.splitext(path)[1].lower()
+        filename = os.path.basename(path)
+        source_dir = os.path.dirname(path)
+        sha1, size = await storage.save(content, ext)
+
+        if sha1 in seen_in_batch or sha1 in existing_sha1s:
+            duplicated.append(filename)
+            continue
+        seen_in_batch.add(sha1)
+
+        existing_doc: Document | None = None
+        if mode == "overwrite":
+            existing_doc = (await session.execute(
+                select(Document).where(
+                    Document.collection_id == col_id,
+                    Document.filename == filename,
+                )
+            )).scalars().first()
+
+        if existing_doc and mode == "overwrite":
+            if existing_doc.content_sha1 == sha1:
+                duplicated.append(filename)
+                continue
+            # 版本快照 + blob 引用（与单文件 overwrite 语义一致）
+            max_ver = (await session.execute(
+                select(func.coalesce(func.max(DocumentVersion.version), 0)).where(
+                    DocumentVersion.document_id == existing_doc.id
+                )
+            )).scalar()
+            session.add(DocumentVersion(
+                document_id=existing_doc.id,
+                version=max_ver + 1,
+                content_sha1=existing_doc.content_sha1,
+                filename=existing_doc.filename,
+                ext=existing_doc.ext,
+                size=existing_doc.size,
+            ))
+            # 旧 blob 引用转移：文档原持有的一份引用转归版本行，不重复 +1
+            blob = await session.get(FileBlob, sha1)
+            if blob:
+                blob.ref_count += 1
+            else:
+                session.add(FileBlob(sha1=sha1, ext=ext, size=size, ref_count=1))
+            existing_doc.content_sha1 = sha1
+            existing_doc.size = size
+            existing_doc.ext = ext
+            existing_doc.source_dir = source_dir
+            existing_doc.current_version += 1
+            existing_doc.updated_at = datetime.now(timezone.utc)
+            session.add(existing_doc)
+            await _set_document_assets(session, existing_doc.id, asset_specs)
+            updated.append(existing_doc)
+            file_data_list.append((content, ext))
+        else:
+            blob = await session.get(FileBlob, sha1)
+            if blob:
+                blob.ref_count += 1
+            else:
+                session.add(FileBlob(sha1=sha1, ext=ext, size=size, ref_count=1))
+            doc = Document(
+                collection_id=col_id,
+                title=os.path.splitext(filename)[0],
+                filename=filename,
+                ext=ext,
+                content_sha1=sha1,
+                size=size,
+                source_dir=source_dir,
+            )
+            session.add(doc)
+            await session.flush()  # 取 doc.id 写资产行
+            await _set_document_assets(session, doc.id, asset_specs)
+            created.append(doc)
+            file_data_list.append((content, ext))
+
+    if not created and not updated and duplicated:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"以下文件内容与集合中已有文件重复，已跳过: {', '.join(duplicated)}",
+        )
+
+    if created or updated:
+        col.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+        for d in created:
+            await session.refresh(d)
+        for d in updated:
+            await session.refresh(d)
+
+        fts_data = list(zip(created, file_data_list[:len(created)]))
+        fts_data += list(zip(updated, file_data_list[len(created):]))
+        for d, (fdata, fext) in fts_data:
+            body_text = _extract_text(fdata, fext)
+            if d in updated:
+                await session.execute(
+                    text("DELETE FROM fts_index WHERE document_id = :doc_id"),
+                    {"doc_id": d.id},
+                )
+            await session.execute(text(
+                "INSERT INTO fts_index (document_id, title, collection_name, body_text) "
+                "VALUES (:doc_id, :title, :col_name, :body)"
+            ), {"doc_id": d.id, "title": d.title, "col_name": col.name, "body": body_text})
+        await session.commit()
+
+    return UploadResult(
+        created=created,
+        updated=updated,
+        duplicated=duplicated,
+    )
+
+
 @router.get("/documents/{doc_id}")
 async def get_document(
     doc_id: int,
@@ -240,10 +478,40 @@ async def get_raw(
     data = await storage.read(doc.content_sha1)
     text = data.decode("utf-8", errors="replace")
 
+    # 文档包图片：md 挂有资产时将相对图片重写为资产端点（前端 img 追加 ?jwt= 鉴权）
+    if doc.ext == ".md" and await _has_assets(session, doc.id):
+        text = rewrite_md_images(text, f"/api/documents/{doc.id}/assets/", doc.source_dir or "")
+
     if doc.ext == ".html" or doc.ext == ".htm" or format == "html":
         wrapped = wrap_html_for_srcdoc(text)
         return PlainTextResponse(wrapped, media_type="text/plain; charset=utf-8")
     return PlainTextResponse(text, media_type="text/plain; charset=utf-8")
+
+
+@router.get("/documents/{doc_id}/assets/{path:path}")
+async def get_document_asset(
+    doc_id: int,
+    path: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    _user: CurrentUserFromQuery,
+):
+    """serve 文档包图片资产。Authorization header 或 ?jwt= query（<img> 用后者）。"""
+    doc = await session.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
+    norm = os.path.normpath(path).replace("\\", "/")
+    if norm.startswith("..") or os.path.isabs(norm):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路径")
+    row = (await session.execute(
+        select(DocumentAsset).where(
+            DocumentAsset.document_id == doc_id,
+            DocumentAsset.path == norm,
+        )
+    )).scalars().first()
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "资产不存在")
+    data = await storage.read(row.sha1, ext=os.path.splitext(norm)[1].lower())
+    return Response(content=data, media_type=row.mime_type)
 
 
 @router.get("/documents/{doc_id}/download")
@@ -371,6 +639,19 @@ async def delete_document(
     # 清理 FTS 索引
     await session.execute(text("DELETE FROM fts_index WHERE document_id = :doc_id"), {"doc_id": doc_id})
 
+    # 释放文档包资产（行 + blob 引用）
+    assets = (await session.execute(
+        select(DocumentAsset).where(DocumentAsset.document_id == doc_id)
+    )).scalars().all()
+    for a in assets:
+        blob = await session.get(FileBlob, a.sha1)
+        if blob:
+            blob.ref_count -= 1
+            if blob.ref_count <= 0:
+                await session.delete(blob)
+                await storage.delete(a.sha1)
+        await session.delete(a)
+
     # 查询所有版本（含当前内容 sha1）
     versions = (await session.execute(
         select(DocumentVersion).where(DocumentVersion.document_id == doc_id)
@@ -434,9 +715,13 @@ async def get_version(
     if not ver:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "版本不存在")
     data = await storage.read(ver.content_sha1)
+    content = data.decode("utf-8", errors="replace")
+    # 历史版本图片按当前资产解析（best-effort）
+    if ver.ext == ".md" and await _has_assets(session, doc_id):
+        content = rewrite_md_images(content, f"/api/documents/{doc_id}/assets/", doc.source_dir or "")
     return {
         "version": ver,
-        "content": data.decode("utf-8", errors="replace"),
+        "content": content,
     }
 
 
@@ -476,12 +761,8 @@ async def restore_version(
     )
     session.add(new_ver)
 
-    # 旧 blob ref_count++（新版本引用它）
-    old_blob = await session.get(FileBlob, doc.content_sha1)
-    if old_blob:
-        old_blob.ref_count += 1
-
-    # 目标版本 blob ref_count++（Document 引用它）
+    # 旧 blob 引用转移：文档原持有的一份引用转归新版本行，不重复 +1
+    # 目标版本 blob ref_count++（Document 重新引用它）
     target_blob = await session.get(FileBlob, target.content_sha1)
     if target_blob:
         target_blob.ref_count += 1

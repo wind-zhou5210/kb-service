@@ -32,6 +32,7 @@ from app.core.config import settings
 from app.core.database import get_session
 from app.core.security import CurrentUser, CurrentUserFromQuery, CurrentUserOptional
 from app.models import Workspace, WorkspaceFile
+from app.services.render import rewrite_md_images as _rewrite_md_images
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -106,23 +107,6 @@ def _fix_zip_filename(entry: zipfile.ZipInfo) -> str:
         except UnicodeDecodeError:
             continue
     return entry.filename
-
-
-def _rewrite_md_images(content: str, serve_prefix: str, file_dir: str) -> str:
-    """将 Markdown 中相对路径的图片引用重写为绝对 URL。"""
-    base_path = file_dir.replace("\\", "/").strip("/")
-    if base_path:
-        base_path += "/"
-
-    def _replace(match):
-        alt = match.group(1)
-        src = match.group(2)
-        if src.startswith(("http://", "https://", "data:", "//", "/")):
-            return match.group(0)
-        resolved = os.path.normpath(base_path + src).replace("\\", "/")
-        return f"![{alt}]({serve_prefix}{resolved})"
-
-    return re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', _replace, content)
 
 
 def _build_tree(files: list[WorkspaceFile]) -> list[dict]:

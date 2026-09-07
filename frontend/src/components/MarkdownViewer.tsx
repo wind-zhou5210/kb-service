@@ -15,6 +15,17 @@ interface Props {
   workspaceServePrefix?: string  // e.g. "/api/workspaces/1/serve/"
 }
 
+// 文档包资产 URL（/api/documents/{id}/assets/…）需鉴权，但 <img> 无法携带
+// Authorization header，故追加 ?jwt= query（与 iframe serve 的既有模式一致）。
+// 分享态前缀 /api/share/doc/ 免鉴权，不追加。
+function withAssetJwt(src?: string): string | undefined {
+  if (!src) return src
+  if (!src.startsWith('/api/documents/')) return src
+  if (src.includes('jwt=')) return src
+  const token = localStorage.getItem('kb_token') || ''
+  return `${src}${src.includes('?') ? '&' : '?'}jwt=${encodeURIComponent(token)}`
+}
+
 function MarkdownViewerInner({ content, onTocReady, onInternalLink, workspaceServePrefix }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -82,6 +93,9 @@ function MarkdownViewerInner({ content, onTocReady, onInternalLink, workspaceSer
             rehypeKatex,
           ] as never
         }
+        components={{
+          img: ({ node, ...rest }: any) => <img {...rest} src={withAssetJwt(rest.src)} />,
+        } as never}
       >
         {content}
       </ReactMarkdown>
