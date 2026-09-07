@@ -34,6 +34,7 @@ class Document(SQLModel, table=True):
     ext: str                               # .md / .html
     content_sha1: str = Field(foreign_key="fileblob.sha1", index=True)
     size: int
+    source_dir: str | None = None       # 文档包内入口文件的目录（zip 上传时记录，供图片相对路径解析）
     tags: str | None = None                # JSON 字符串，MVP 简化为逗号分隔
     note: str | None = None
     sort_order: int = 0
@@ -56,6 +57,24 @@ class DocumentVersion(SQLModel, table=True):
     ext: str
     size: int
     change_note: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class DocumentAsset(SQLModel, table=True):
+    """文档包内的图片资产（zip 上传）。
+
+    每个入口文档挂整包资产集（path 为包内相对路径），保证任意目录深度的
+    md 相对引用（含 ../）可解析；物理 blob 按 sha1 跨文档去重。
+    """
+    __table_args__ = (
+        UniqueConstraint("document_id", "path", name="uq_doc_asset"),
+    )
+    id: int | None = Field(default=None, primary_key=True)
+    document_id: int = Field(foreign_key="document.id", index=True)
+    path: str  # 包内相对路径（/ 分隔，normpath 后）
+    sha1: str = Field(foreign_key="fileblob.sha1")
+    size: int
+    mime_type: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

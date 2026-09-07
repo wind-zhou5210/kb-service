@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     allowed_exts: list[str] = [".md", ".html", ".htm"]
     max_upload_mb: int = 10
 
+    # 文档包（zip：md/html + 图片资产）
+    package_max_upload_mb: int = 100
+    package_asset_exts: list[str] = [
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico",
+    ]
+
     # 工作区
     workspace_dir: Path = Path("/data/workspaces")
     workspace_max_upload_mb: int = 500
@@ -43,6 +49,10 @@ class Settings(BaseSettings):
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
+
+    @property
+    def package_max_upload_bytes(self) -> int:
+        return self.package_max_upload_mb * 1024 * 1024
 
 
 settings = Settings()

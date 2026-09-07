@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Modal, Upload, message, Button, List, Checkbox, Tag } from 'antd'
-import { InboxOutlined, FileTextOutlined, Html5Outlined, DeleteOutlined, WarningOutlined } from '@ant-design/icons'
+import { InboxOutlined, FileTextOutlined, Html5Outlined, DeleteOutlined, WarningOutlined, FileZipOutlined } from '@ant-design/icons'
 import type { UploadFile } from 'antd'
 import { api } from '../api/client'
 import { formatSize } from '../utils/format'
@@ -14,7 +14,7 @@ interface Props {
 }
 
 const { Dragger } = Upload
-const ACCEPT = '.md,.html,.htm'
+const ACCEPT = '.md,.html,.htm,.zip'
 
 export default function UploadModal({ collectionId, open, onClose, onSuccess, existingFilenames = [] }: Props) {
   const [files, setFiles] = useState<UploadFile[]>([])
@@ -41,14 +41,33 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess, ex
     }
     setUploading(true)
     try {
-      const result = await api.uploadDocuments(
-        collectionId,
-        valid.map((f) => f.originFileObj as File),
-        overwriteMode ? 'overwrite' : undefined,
-      )
-      const createdCount = result.created?.length ?? 0
-      const updatedCount = (result as any).updated?.length ?? 0
-      const duplicatedCount = result.duplicated?.length ?? 0
+      // zip 走文档包端点（md/html + 图片资产），其余走原多文件端点
+      const zips = valid.filter((f) => f.name.toLowerCase().endsWith('.zip'))
+      const others = valid.filter((f) => !f.name.toLowerCase().endsWith('.zip'))
+      const mode = overwriteMode ? 'overwrite' : undefined
+      let createdCount = 0
+      let updatedCount = 0
+      let duplicatedCount = 0
+      let duplicatedNames: string[] = []
+      if (others.length) {
+        const r = await api.uploadDocuments(
+          collectionId,
+          others.map((f) => f.originFileObj as File),
+          mode,
+        )
+        createdCount += r.created?.length ?? 0
+        updatedCount += (r as any).updated?.length ?? 0
+        duplicatedCount += r.duplicated?.length ?? 0
+        duplicatedNames = duplicatedNames.concat(r.duplicated ?? [])
+      }
+      for (const z of zips) {
+        const r = await api.uploadPackage(collectionId, z.originFileObj as File, mode)
+        createdCount += r.created?.length ?? 0
+        updatedCount += (r as any).updated?.length ?? 0
+        duplicatedCount += r.duplicated?.length ?? 0
+        duplicatedNames = duplicatedNames.concat(r.duplicated ?? [])
+      }
+      const result = { created: new Array(createdCount), updated: new Array(updatedCount), duplicated: duplicatedNames }
 
       if (duplicatedCount > 0 && (createdCount > 0 || updatedCount > 0)) {
         message.success(
@@ -147,7 +166,7 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess, ex
           点击或拖拽文件到此区域
         </p>
         <p style={{ fontSize: 12, color: 'var(--ink-400)' }}>
-          支持 .md / .html / .htm 格式，可多选
+          支持 .md / .html / .htm 格式，可多选；.zip 文档包（md + 图片资产）
         </p>
       </Dragger>
 
@@ -156,6 +175,7 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess, ex
         <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
           {files.map((f) => {
             const isMd = f.name.endsWith('.md')
+            const isZip = f.name.toLowerCase().endsWith('.zip')
             return (
               <div
                 key={f.uid}
@@ -167,8 +187,8 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess, ex
                   borderBottom: '1px solid var(--border)',
                 }}
               >
-                <span style={{ color: isMd ? 'var(--md-color)' : 'var(--html-color)', fontSize: 16 }}>
-                  {isMd ? <FileTextOutlined /> : <Html5Outlined />}
+                <span style={{ color: isZip ? 'var(--accent)' : isMd ? 'var(--md-color)' : 'var(--html-color)', fontSize: 16 }}>
+                  {isZip ? <FileZipOutlined /> : isMd ? <FileTextOutlined /> : <Html5Outlined />}
                 </span>
                 <span style={{ flex: 1, fontSize: 13, color: 'var(--ink-800)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {f.name}

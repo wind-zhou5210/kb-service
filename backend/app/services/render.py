@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+import os
+import re
 import warnings
 
 import bleach
@@ -163,3 +165,24 @@ def wrap_html_for_srcdoc(raw_html: str) -> str:
     else:
         wrapped = cleaned + RESIZE_SCRIPT
     return wrapped
+
+
+def rewrite_md_images(content: str, serve_prefix: str, file_dir: str) -> str:
+    """将 Markdown 中相对路径的图片引用重写为绝对 URL。
+
+    serve_prefix 为资产 serve 端点前缀（如 /api/documents/1/assets/ 或
+    /api/workspaces/share/{token}/serve/）；file_dir 为 md 所在目录（包内相对）。
+    """
+    base_path = file_dir.replace("\\", "/").strip("/")
+    if base_path:
+        base_path += "/"
+
+    def _replace(match):
+        alt = match.group(1)
+        src = match.group(2)
+        if src.startswith(("http://", "https://", "data:", "//", "/")):
+            return match.group(0)
+        resolved = os.path.normpath(base_path + src).replace("\\", "/")
+        return f"![{alt}]({serve_prefix}{resolved})"
+
+    return re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', _replace, content)
