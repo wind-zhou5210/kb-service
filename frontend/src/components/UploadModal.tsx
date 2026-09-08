@@ -4,6 +4,7 @@ import { InboxOutlined, FileTextOutlined, Html5Outlined, DeleteOutlined, Warning
 import type { UploadFile } from 'antd'
 import { api } from '../api/client'
 import { formatSize } from '../utils/format'
+import { describeUploadError, mbBytes, PACKAGE_ZIP_MAX_MB, DOCUMENT_MAX_MB } from '../utils/uploadLimit'
 
 interface Props {
   collectionId: number
@@ -37,6 +38,19 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess, ex
     const valid = files.filter((f) => f.originFileObj)
     if (!valid.length) {
       message.warning('请先选择文件')
+      return
+    }
+    // 上传前体积校验：zip 文档包与单文件分别限流，避免大文件白白传输后才被拒绝
+    const oversized = valid.filter((f) =>
+      f.name.toLowerCase().endsWith('.zip')
+        ? (f.size || 0) > mbBytes(PACKAGE_ZIP_MAX_MB)
+        : (f.size || 0) > mbBytes(DOCUMENT_MAX_MB),
+    )
+    if (oversized.length) {
+      message.error(
+        `文件过大：${oversized.map((f) => `${f.name}（${formatSize(f.size || 0)}）`).join('、')}。限制：zip 文档包 ${PACKAGE_ZIP_MAX_MB}MB、单文件 ${DOCUMENT_MAX_MB}MB`,
+        6,
+      )
       return
     }
     setUploading(true)
@@ -86,12 +100,10 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess, ex
       onClose()
       onSuccess()
     } catch (e: any) {
-      const detail = e.response?.data?.detail
-      if (detail) {
-        message.error(detail, 5)
-      } else {
-        message.error('上传失败，请检查网络后重试')
-      }
+      message.error(
+        describeUploadError(e, `zip 文档包上限 ${PACKAGE_ZIP_MAX_MB}MB、单文件上限 ${DOCUMENT_MAX_MB}MB`),
+        6,
+      )
     } finally {
       setUploading(false)
     }
@@ -167,6 +179,7 @@ export default function UploadModal({ collectionId, open, onClose, onSuccess, ex
         </p>
         <p style={{ fontSize: 12, color: 'var(--ink-400)' }}>
           支持 .md / .html / .htm 格式，可多选；.zip 文档包（md + 图片资产）
+          （zip ≤ {PACKAGE_ZIP_MAX_MB}MB、单文件 ≤ {DOCUMENT_MAX_MB}MB）
         </p>
       </Dragger>
 
