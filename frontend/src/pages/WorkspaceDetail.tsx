@@ -11,6 +11,7 @@ import MarkdownViewer from '../components/MarkdownViewer'
 import EmptyState from '../components/EmptyState'
 import SubNav from '../components/SubNav'
 import { copyToClipboard } from '../utils/clipboard'
+import { describeUploadError, mbBytes, WORKSPACE_ZIP_MAX_MB, DOCUMENT_MAX_MB } from '../utils/uploadLimit'
 import { useIsMobile } from '../hooks/useMediaQuery'
 import { useWorkspaceStore } from '../store/workspace'
 
@@ -201,6 +202,11 @@ export default function WorkspaceDetail() {
 
   // Upload
   const handleUpload = async (file: File) => {
+    // 上传前体积校验：避免大文件白白传输后才被拒绝，并给出限制说明
+    if (file.size > mbBytes(WORKSPACE_ZIP_MAX_MB)) {
+      message.error(`文件过大：${formatSize(file.size)}。工作空间 zip 包上限 ${WORKSPACE_ZIP_MAX_MB}MB，请精简后重试`, 6)
+      return
+    }
     setUploading(true)
     try {
       await api.uploadWorkspaceZip(wsId, file)
@@ -208,7 +214,7 @@ export default function WorkspaceDetail() {
       setUploadOpen(false)
       loadWorkspace()
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '上传失败')
+      message.error(describeUploadError(e, `工作空间 zip 包上限 ${WORKSPACE_ZIP_MAX_MB}MB`), 6)
     } finally { setUploading(false) }
   }
 
@@ -223,6 +229,10 @@ export default function WorkspaceDetail() {
     e.target.value = '' // 允许下次选择同一文件
     const path = replacePathRef.current
     if (!file || !path) return
+    if (file.size > mbBytes(DOCUMENT_MAX_MB)) {
+      message.error(`文件过大：${formatSize(file.size)}。单文件上限 ${DOCUMENT_MAX_MB}MB`, 6)
+      return
+    }
     try {
       await api.uploadWorkspaceFile(wsId, path, file)
       message.success('替换成功')
@@ -233,7 +243,7 @@ export default function WorkspaceDetail() {
         setViewerVersion(v => v + 1)
       }
     } catch (err: any) {
-      message.error(err.response?.data?.detail || '替换失败')
+      message.error(describeUploadError(err, `单文件上限 ${DOCUMENT_MAX_MB}MB`), 6)
     }
   }
 
@@ -261,6 +271,10 @@ export default function WorkspaceDetail() {
   const handleAddFile = async () => {
     const path = addFilePath.trim()
     if (!path || !addFile) { message.warning('请填写目标路径并选择文件'); return }
+    if (addFile.size > mbBytes(DOCUMENT_MAX_MB)) {
+      message.error(`文件过大：${formatSize(addFile.size)}。单文件上限 ${DOCUMENT_MAX_MB}MB`, 6)
+      return
+    }
     setAddFileUploading(true)
     try {
       await api.uploadWorkspaceFile(wsId, path, addFile)
@@ -270,7 +284,7 @@ export default function WorkspaceDetail() {
       setAddFile(null)
       loadWorkspace()
     } catch (err: any) {
-      message.error(err.response?.data?.detail || '添加失败')
+      message.error(describeUploadError(err, `单文件上限 ${DOCUMENT_MAX_MB}MB`), 6)
     } finally { setAddFileUploading(false) }
   }
 
@@ -483,7 +497,7 @@ export default function WorkspaceDetail() {
         >
           <p className="ant-upload-drag-icon"><InboxOutlined style={{ fontSize: 40, color: 'var(--accent)' }} /></p>
           <p style={{ fontSize: 14, fontWeight: 500 }}>点击或拖拽 .zip 文件</p>
-          <p style={{ fontSize: 12, color: 'var(--ink-400)' }}>将包含所有文件及目录结构的 zip 包上传</p>
+          <p style={{ fontSize: 12, color: 'var(--ink-400)' }}>将包含所有文件及目录结构的 zip 包上传（单包不超过 {WORKSPACE_ZIP_MAX_MB}MB）</p>
         </Dragger>
         <p style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 12, marginBottom: 0 }}>
           更新工作空间内容不会影响已生成的分享链接。
