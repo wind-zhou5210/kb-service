@@ -8,6 +8,7 @@ import { trackRecent, updateRecentScroll, getRecent } from '../utils/recent'
 import WorkspaceTree from '../components/WorkspaceTree'
 import HtmlSandbox from '../components/HtmlSandbox'
 import MarkdownViewer from '../components/MarkdownViewer'
+import DocToc, { type TocItem } from '../components/DocToc'
 import EmptyState from '../components/EmptyState'
 import SubNav from '../components/SubNav'
 import { copyToClipboard } from '../utils/clipboard'
@@ -62,6 +63,9 @@ export default function WorkspaceDetail() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   // 面包屑：上报当前工作空间
   const setCurrent = useWorkspaceStore((s) => s.setCurrent)
+  // 右侧目录：MarkdownViewer 渲染后回填标题列表
+  const [tocItems, setTocItems] = useState<TocItem[]>([])
+  const handleTocReady = useCallback((items: TocItem[]) => setTocItems(items), [])
 
   const toggleSidebar = () => {
     setCollapsed((c) => {
@@ -466,19 +470,33 @@ export default function WorkspaceDetail() {
           </div>
         ) : contentLoading ? (
           <div style={{ padding: 'var(--space-8)', maxWidth: 760, margin: '0 auto' }}><Skeleton active paragraph={{ rows: 10 }} /></div>
-        ) : isMd && mdContent ? (
-          <MarkdownViewer
-            content={mdContent}
-            onInternalLink={handleInternalLink}
-            workspaceServePrefix={servePrefix}
-          />
-        ) : isHtml && htmlSrc ? (
-          <div style={{ height: '100%' }}>
-            <HtmlSandbox src={htmlSrc} fill title="工作空间文件预览" />
-          </div>
         ) : (
-          <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--ink-400)' }}>
-            该文件类型暂不支持预览
+          <div style={{ minHeight: '100%', display: 'flex' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {isMd && mdContent ? (
+                <MarkdownViewer
+                  content={mdContent}
+                  onInternalLink={handleInternalLink}
+                  onTocReady={handleTocReady}
+                  workspaceServePrefix={servePrefix}
+                />
+              ) : isHtml && htmlSrc ? (
+                <div style={{ height: '100%' }}>
+                  <HtmlSandbox src={htmlSrc} fill title="工作空间文件预览" />
+                </div>
+              ) : (
+                <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--ink-400)' }}>
+                  该文件类型暂不支持预览
+                </div>
+              )}
+            </div>
+
+            {/* 右侧目录：md 且有标题时展示，点击跳转 + 滚动高亮 */}
+            {isMd && mdContent && tocItems.length > 0 && (
+              <aside style={{ width: 'var(--toc-w)', flexShrink: 0, borderLeft: '1px solid var(--subtle-border)' }}>
+                <DocToc items={tocItems} />
+              </aside>
+            )}
           </div>
         )}
       </main>
