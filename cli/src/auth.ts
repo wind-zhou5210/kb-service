@@ -4,16 +4,17 @@ import * as readline from 'readline';
 import ora from 'ora';
 
 export interface AuthProvider {
-  /** 执行登录并返回 JWT */
-  login(username?: string): Promise<string>;
+  /** 执行登录并返回 JWT（password 缺省时交互式输入） */
+  login(username?: string, password?: string): Promise<string>;
 }
 
 /**
  * 交互式密码登录
  * MVP 实现：终端输入用户名 + 密码，调用 POST /api/auth/login
+ * 也支持预设密码（-p）用于脚本/CI 非交互场景
  */
 export class PasswordAuthProvider implements AuthProvider {
-  async login(username?: string): Promise<string> {
+  async login(username?: string, presetPassword?: string): Promise<string> {
     const stdin = process.stdin;
     const stdout = process.stdout;
     // Windows PowerShell 下 isTTY 可能为 true 但 raw mode 不工作
@@ -23,7 +24,14 @@ export class PasswordAuthProvider implements AuthProvider {
     let user: string;
     let password: string;
 
-    if (useRaw) {
+    if (presetPassword) {
+      // 非交互：密码由调用方传入，用户名取参数或 KB_USERNAME
+      user = username || process.env.KB_USERNAME || '';
+      if (!user) {
+        throw new Error('非交互登录需提供用户名: kb login <用户名> -p <密码>');
+      }
+      password = presetPassword;
+    } else if (useRaw) {
       // Unix / Git Bash：readline 问用户名 + raw mode 输密码
       user = username || (await askQuestion('用户名: '));
       password = await askPasswordRaw(stdin, stdout, '密码: ');
