@@ -7,6 +7,7 @@ import { formatSize } from '../utils/format'
 import WorkspaceTree from '../components/WorkspaceTree'
 import HtmlSandbox from '../components/HtmlSandbox'
 import MarkdownViewer from '../components/MarkdownViewer'
+import DocToc, { type TocItem } from '../components/DocToc'
 import EmptyState from '../components/EmptyState'
 import { useIsMobile } from '../hooks/useMediaQuery'
 
@@ -33,6 +34,9 @@ export default function SharedWorkspace() {
   // 移动端：目录树改为 Drawer 呈现
   const isMobile = useIsMobile()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // 右侧目录：MarkdownViewer 渲染后回填标题列表
+  const [tocItems, setTocItems] = useState<TocItem[]>([])
+  const handleTocReady = useCallback((items: TocItem[]) => setTocItems(items), [])
 
   const toggleSidebar = () => {
     setCollapsed((c) => {
@@ -250,18 +254,32 @@ export default function SharedWorkspace() {
             </div>
           ) : contentLoading ? (
             <div style={{ padding: 32, maxWidth: 760, margin: '0 auto' }}><Skeleton active paragraph={{ rows: 10 }} /></div>
-          ) : isMd && mdContent ? (
-            <MarkdownViewer
-              content={mdContent}
-              workspaceServePrefix={servePrefix}
-            />
-          ) : isHtml && htmlSrc ? (
-            <div style={{ height: '100%' }}>
-              <HtmlSandbox src={htmlSrc} fill title="分享工作空间文件预览" />
-            </div>
           ) : (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-400)' }}>
-              该文件类型暂不支持预览
+            <div style={{ minHeight: '100%', display: 'flex' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {isMd && mdContent ? (
+                  <MarkdownViewer
+                    content={mdContent}
+                    onTocReady={handleTocReady}
+                    workspaceServePrefix={servePrefix}
+                  />
+                ) : isHtml && htmlSrc ? (
+                  <div style={{ height: '100%' }}>
+                    <HtmlSandbox src={htmlSrc} fill title="分享工作空间文件预览" />
+                  </div>
+                ) : (
+                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-400)' }}>
+                    该文件类型暂不支持预览
+                  </div>
+                )}
+              </div>
+
+              {/* 右侧目录：md 且有标题时展示，点击跳转 + 滚动高亮 */}
+              {isMd && mdContent && tocItems.length > 0 && (
+                <aside style={{ width: 'var(--toc-w)', flexShrink: 0, borderLeft: '1px solid var(--subtle-border)' }}>
+                  <DocToc items={tocItems} />
+                </aside>
+              )}
             </div>
           )}
         </main>
