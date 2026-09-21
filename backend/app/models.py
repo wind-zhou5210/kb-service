@@ -84,6 +84,9 @@ class Workspace(SQLModel, table=True):
     name: str = Field(index=True)
     description: str | None = None
     storage_path: str  # 磁盘路径 /data/workspaces/{id}/
+    # 当前生效的内容子目录名（整包替换的原子发布指针）：
+    # NULL = 旧布局（内容直接在 storage_path 下）；"rev-xxxxxxxx" = 内容位于 storage_path/rev-xxxxxxxx/
+    content_dir: str | None = None
     share_token: str | None = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -40,6 +40,11 @@ async def init_db() -> None:
         # 迁移：Document 表加 source_dir 列（文档包入口目录）
         if "source_dir" not in col_names:
             await conn.execute(text("ALTER TABLE document ADD COLUMN source_dir TEXT"))
+        # 迁移：Workspace 表加 content_dir 列（内容版本目录，整包替换的原子发布指针）
+        ws_cols = (await conn.execute(text("PRAGMA table_info(workspace)"))).fetchall()
+        ws_col_names = [c[1] for c in ws_cols]
+        if "content_dir" not in ws_col_names:
+            await conn.execute(text("ALTER TABLE workspace ADD COLUMN content_dir TEXT"))
         # 开启 WAL，提升 SQLite 并发读性能
         await conn.execute(__import__("sqlalchemy").text("PRAGMA journal_mode=WAL"))
         # FTS5 全文索引虚表

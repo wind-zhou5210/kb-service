@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, Modal, Input, Skeleton, Space, message, Upload, Drawer, Tooltip, Dropdown } from 'antd'
-import { UploadOutlined, DownloadOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined, FileAddOutlined, MoreOutlined } from '@ant-design/icons'
+import { Button, Modal, Input, Skeleton, Space, message, Upload, Drawer, Tooltip, Dropdown, Alert } from 'antd'
+import { UploadOutlined, DownloadOutlined, ShareAltOutlined, FolderOutlined, DeleteOutlined, InboxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined, FileAddOutlined, MoreOutlined, LoadingOutlined } from '@ant-design/icons'
 import { api, type Workspace, type WorkspaceTreeNode } from '../api/client'
 import { formatSize, relativeTime } from '../utils/format'
 import { trackRecent, updateRecentScroll, getRecent } from '../utils/recent'
@@ -85,14 +85,17 @@ export default function WorkspaceDetail() {
       setCurrent(ws)
       setTree(treeData)
       setShareToken(ws.share_token)
-      // 深链：?file= 命中即选中并消费（清理参数，避免后续 reload 拽回）；否则仅首次加载自动选第一个
+      // 深链：?file= 命中即选中并消费（清理参数，避免后续 reload 拽回）
       const fileParam = searchParams.get('file')
       if (fileParam && hasFile(treeData, fileParam)) {
         setSearchParams({}, { replace: true })
         setSelectedFile(fileParam)
-      } else if (!selectedFileRef.current && treeData.length > 0) {
-        const first = findFirstFile(treeData)
-        if (first) setSelectedFile(first)
+      } else {
+        // 常规加载 / 整包更新后重载：当前选中文件已被删除时回退到第一个；空空间则清空选择
+        const cur = selectedFileRef.current
+        if ((cur && !hasFile(treeData, cur)) || (!cur && treeData.length > 0)) {
+          setSelectedFile(findFirstFile(treeData) ?? null)
+        }
       }
     } finally { setLoading(false) }
   }, [wsId, searchParams])
@@ -204,19 +207,43 @@ export default function WorkspaceDetail() {
     if (isMobile) setDrawerOpen(false)
   }
 
-  // Upload
+  // Upload：整包替换（更新工作空间内容）
   const handleUpload = async (file: File) => {
     // 上传前体积校验：避免大文件白白传输后才被拒绝，并给出限制说明
     if (file.size > mbBytes(WORKSPACE_ZIP_MAX_MB)) {
       message.error(`文件过大：${formatSize(file.size)}。工作空间 zip 包上限 ${WORKSPACE_ZIP_MAX_MB}MB，请精简后重试`, 6)
       return
     }
+    // 整包替换会删除包中未包含的旧文件：执行前必须二次确认
+    Modal.confirm({
+      title: '确认更新工作空间内容？',
+      width: 460,
+      content: (
+        <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+          <div style={{ marginBottom: 4 }}>{file.name} 将作为工作空间的<strong>完整新内容</strong>：</div>
+          <div style={{ color: 'var(--ink-500)' }}>· 同名文件覆盖，新增文件加入</div>
+          <div style={{ color: 'var(--ink-500)', marginBottom: 8 }}>· <strong>包中未包含的文件将被删除</strong></div>
+          <div style={{ color: 'var(--ink-400)' }}>工作空间与已有分享链接保持不变。</div>
+        </div>
+      ),
+      okText: '确认更新',
+      cancelText: '取消',
+      onOk: () => doUpload(file),
+    })
+  }
+
+  const doUpload = async (file: File) => {
     setUploading(true)
     try {
-      await api.uploadWorkspaceZip(wsId, file)
-      message.success('上传成功')
+      const stat = await api.uploadWorkspaceZip(wsId, file)
       setUploadOpen(false)
-      loadWorkspace()
+      await loadWorkspace()
+      // 同路径文件也要重载：递增版本号强制刷新 Markdown / iframe 内容
+      setViewerVersion(v => v + 1)
+      message.success(
+        `更新完成：新增 ${stat.added} · 更新 ${stat.updated} · 删除 ${stat.removed} · 未变 ${stat.unchanged}`,
+        6,
+      )
     } catch (e: any) {
       message.error(describeUploadError(e, `工作空间 zip 包上限 ${WORKSPACE_ZIP_MAX_MB}MB`), 6)
     } finally { setUploading(false) }
@@ -390,7 +417,7 @@ export default function WorkspaceDetail() {
         </div>
         {/* P1-4：主按钮 + 更多下拉 + 删除分隔（避免 5 连图标簇） */}
         <Space style={{ marginTop: 'var(--space-3)' }} size={4}>
-          <Button type="primary" size="small" icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>上传</Button>
+          <Button type="primary" size="small" icon={<UploadOutlined />} disabled={uploading} onClick={() => setUploadOpen(true)}>{workspace.file_count ? '更新内容' : '上传'}</Button>
           <Dropdown
             menu={{
               items: [
@@ -502,24 +529,43 @@ export default function WorkspaceDetail() {
       </main>
       </div>
 
-      {/* 上传弹窗 */}
-      <Modal title="上传工作空间" open={uploadOpen} onCancel={() => setUploadOpen(false)} footer={null}>
+      {/* 上传弹窗：整包替换（更新语义） */}
+      <Modal
+        title={workspace?.file_count ? '更新工作空间内容' : '上传工作空间'}
+        open={uploadOpen}
+        onCancel={() => setUploadOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="整包替换"
+          description={
+            <span style={{ fontSize: 12 }}>
+              zip 作为<strong>完整新内容</strong>：同名文件覆盖、新增文件加入，<strong>包中未包含的文件将被删除</strong>；工作空间与已有分享链接保持不变。
+            </span>
+          }
+        />
         <Dragger
           accept=".zip"
           multiple={false}
+          disabled={uploading}
           beforeUpload={(file) => {
             handleUpload(file)
             return Upload.LIST_IGNORE
           }}
           showUploadList={false}
         >
-          <p className="ant-upload-drag-icon"><InboxOutlined style={{ fontSize: 40, color: 'var(--accent)' }} /></p>
-          <p style={{ fontSize: 14, fontWeight: 500 }}>点击或拖拽 .zip 文件</p>
-          <p style={{ fontSize: 12, color: 'var(--ink-400)' }}>将包含所有文件及目录结构的 zip 包上传（单包不超过 {WORKSPACE_ZIP_MAX_MB}MB）</p>
+          <p className="ant-upload-drag-icon">
+            {uploading
+              ? <LoadingOutlined style={{ fontSize: 40, color: 'var(--accent)' }} />
+              : <InboxOutlined style={{ fontSize: 40, color: 'var(--accent)' }} />}
+          </p>
+          <p style={{ fontSize: 14, fontWeight: 500 }}>{uploading ? '正在上传并发布…' : '点击或拖拽 .zip 文件'}</p>
+          <p style={{ fontSize: 12, color: 'var(--ink-400)' }}>包含完整文件与目录结构（单包不超过 {WORKSPACE_ZIP_MAX_MB}MB）</p>
         </Dragger>
-        <p style={{ fontSize: 12, color: 'var(--ink-400)', marginTop: 12, marginBottom: 0 }}>
-          更新工作空间内容不会影响已生成的分享链接。
-        </p>
       </Modal>
 
       {/* 添加文件弹窗 */}

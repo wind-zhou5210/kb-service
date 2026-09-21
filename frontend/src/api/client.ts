@@ -211,7 +211,14 @@ export const api = {
   uploadWorkspaceZip: (id: number, file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return client.post<{ file_count: number }>(`/workspaces/${id}/upload`, form, {
+    // 整包替换：ZIP 作为完整新内容（同路径覆盖、缺失文件删除），返回变更统计
+    return client.post<{
+      count: number
+      added: number
+      updated: number
+      removed: number
+      unchanged: number
+    }>(`/workspaces/${id}/upload`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data)
   },

@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # 工作区
     workspace_dir: Path = Path("/data/workspaces")
     workspace_max_upload_mb: int = 500
+    # 整包上传的解压资源限制（防 zip 炸弹与超大目录树；与压缩包上限相互独立）
+    workspace_max_extract_mb: int = 1000
+    workspace_max_entries: int = 20000
     workspace_blocked_exts: list[str] = [
         ".exe", ".bat", ".cmd", ".com", ".sh", ".bash", ".dll", ".so",
         ".dylib", ".dmg", ".msi", ".scr", ".pif", ".vbs", ".vbe",
@@ -53,6 +56,10 @@ class Settings(BaseSettings):
     @property
     def package_max_upload_bytes(self) -> int:
         return self.package_max_upload_mb * 1024 * 1024
+
+    @property
+    def workspace_max_extract_bytes(self) -> int:
+        return self.workspace_max_extract_mb * 1024 * 1024
 
 
 settings = Settings()
