@@ -34,7 +34,12 @@ from starlette.background import BackgroundTask
 
 from app.core.config import settings
 from app.core.database import get_session
-from app.core.security import CurrentUser, CurrentUserFromQuery, CurrentUserOptional
+from app.core.security import (
+    CurrentUser,
+    CurrentUserFromAny,
+    CurrentUserFromQuery,
+    CurrentUserOptional,
+)
 from app.models import Workspace, WorkspaceFile
 from app.services.render import rewrite_md_images as _rewrite_md_images
 
@@ -847,12 +852,14 @@ async def serve_workspace_file(
     ws_id: int,
     path: str,
     session: Annotated[AsyncSession, Depends(get_session)],
-    _user: CurrentUserOptional,
+    _user: CurrentUserFromAny,
     render: str | None = Query(None),
 ):
     """提供工作空间内文件内容。
 
-    支持 ?jwt=xxx 查询参数以兼容 iframe 内无法发送 Authorization header 的场景。
+    支持三种凭据（任一有效即可）：Authorization header（前端 fetch / CLI）、
+    ?jwt= 查询参数（iframe 主文档无法带 header）、会话 cookie（iframe 内
+    CSS/JS/图片等子资源与同源下载——浏览器自动发起，无法带前述凭据）。
     对 .md 文件传入 ?render=md 时会自动重写相对图片路径为绝对 URL。
     """
     ws = await session.get(Workspace, ws_id)

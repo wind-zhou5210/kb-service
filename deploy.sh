@@ -49,8 +49,14 @@ KB_ADMIN_PASSWORD=admin123
 KB_STORAGE_DIR=/data/files
 KB_DB_PATH=/data/db/kb.sqlite
 KB_MAX_UPLOAD_MB=10
+
+# 会话 cookie 是否要求 HTTPS（默认 true）。用于 iframe 内 CSS/JS 子资源
+# 与同源下载的鉴权：若通过 http（如 IP 直连）访问，取消下面一行注释，
+# 否则浏览器不会携带 cookie，工作空间预览的样式/脚本会加载失败。
+# KB_COOKIE_SECURE=false
 EOF
     log_warn "已生成 .env 配置文件，请按需修改 admin 密码。"
+    log_warn "若通过 http（IP 直连）访问，请取消 .env 中 KB_COOKIE_SECURE=false 的注释。"
 else
     log_info ".env 已存在，跳过生成。"
 fi
@@ -69,6 +75,9 @@ docker image prune -f
 log_info "部署完成！"
 echo "  访问地址: http://localhost:8000"
 echo "  管理员:   admin / admin123"
+echo ""
+echo "  提示: 当前为 http 访问时，需在 .env 设置 KB_COOKIE_SECURE=false"
+echo "        （否则工作空间预览的样式/脚本会加载失败；https 访问则保持默认）"
 echo ""
 echo "  常用命令:"
 echo "    $COMPOSE_CMD -f docker-compose.prod.yml ps      查看服务状态"

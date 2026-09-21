@@ -63,11 +63,9 @@
 
 ---
 
-## P0 — 缺陷 & 安全（待做）
+## P0 — 缺陷 & 安全
 
-| # | 内容 | 涉及端 | 说明 |
-|---|------|--------|------|
-| 1 | **后端读接口加鉴权** | 后端 | `GET /api/collections`、`GET /api/collections/{id}/documents`、`GET /api/documents/{id}`、`/raw`、`/download`、`/versions` 目前无需认证即可访问，对外网暴露时文档原文可被未认证遍历下载。应改为登录用户才能读，未登录仅能访问已分享内容 |
+✅ **已全部处理**：读接口鉴权已加固（集合列表、文档原文/下载/版本、工作空间文件均需登录；分享链接保持免登录；会话 cookie 兼容 iframe 子资源）。当前无未决 P0 项。
 
 ---
 
@@ -112,7 +110,7 @@
 
 | # | 内容 | 文件 | 阻塞的 CLI 项 |
 |---|------|------|--------------|
-| 18 | 统一鉴权：读接口加 `Depends(get_current_user)` | `collections.py`, `documents.py` | P0 #1 |
+| ~~18~~ | ~~统一鉴权：读接口加 `Depends(get_current_user)`~~ ✅ 已完成 | `collections.py`, `documents.py` | — |
 | 19 | 新增登录态集合整包下载端点 | `collections.py` | P1 #3 |
 | 20 | 新增工作空间文件重命名/移动端点 | `workspaces.py` | P1 #4 |
 | 21 | 新增文档资产列表端点 | `documents.py` | P1 #5 |

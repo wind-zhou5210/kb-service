@@ -26,7 +26,7 @@ from sqlmodel import func, select
 
 from app.core.config import settings
 from app.core.database import get_session
-from app.core.security import CurrentUser, CurrentUserFromQuery
+from app.core.security import CurrentUser, CurrentUserFromAny, CurrentUserFromQuery
 from app.models import Collection, Document, DocumentAsset, DocumentVersion, FileBlob
 from app.services.render import rewrite_md_images, wrap_html_for_srcdoc
 from app.storage import storage
@@ -111,6 +111,7 @@ async def _set_document_assets(
 async def list_documents(
     col_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
+    _user: CurrentUserFromAny,
 ):
     stmt = select(Document).where(Document.collection_id == col_id).order_by(
         Document.sort_order, Document.created_at.desc()
@@ -459,6 +460,7 @@ async def upload_document_package(
 async def get_document(
     doc_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
+    _user: CurrentUserFromAny,
 ):
     doc = await session.get(Document, doc_id)
     if not doc:
@@ -470,6 +472,7 @@ async def get_document(
 async def get_raw(
     doc_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
+    _user: CurrentUserFromAny,
     format: Annotated[str | None, Query()] = None,  # html 时返回包装后的 srcdoc 内容
 ):
     doc = await session.get(Document, doc_id)
@@ -518,6 +521,7 @@ async def get_document_asset(
 async def download_document(
     doc_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
+    _user: CurrentUserFromAny,
 ):
     doc = await session.get(Document, doc_id)
     if not doc:
@@ -690,6 +694,7 @@ async def delete_document(
 async def list_versions(
     doc_id: int,
     session: Annotated[AsyncSession, Depends(get_session)],
+    _user: CurrentUserFromAny,
 ):
     doc = await session.get(Document, doc_id)
     if not doc:
@@ -705,6 +710,7 @@ async def get_version(
     doc_id: int,
     version: int,
     session: Annotated[AsyncSession, Depends(get_session)],
+    _user: CurrentUserFromAny,
 ):
     ver = (await session.execute(
         select(DocumentVersion).where(

@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
 import { Button, Dropdown, Input, Tooltip } from 'antd'
 import { LogoutOutlined, SearchOutlined, SunOutlined, MoonOutlined, FolderOutlined, BuildOutlined } from '@ant-design/icons'
 import { useAuth } from '../store/auth'
+import { api } from '../api/client'
 import { useTheme } from '../store/theme'
 import { useIsMobile } from '../hooks/useMediaQuery'
 
@@ -19,6 +20,13 @@ export default function AppLayout({ children }: Props) {
   const toggleTheme = useTheme((s) => s.toggleTheme)
   const isMobile = useIsMobile()
   const [q, setQ] = useState('')
+
+  // 升级兼容：用本地 token 补种会话 cookie（iframe 子资源与同源下载依赖它）。
+  // 幂等请求、失败静默：真正缺凭据时会在具体请求上自然暴露。
+  useEffect(() => {
+    if (!useAuth.getState().token) return
+    api.establishSession().catch(() => {})
+  }, [])
 
   const goSearch = () => {
     const trimmed = q.trim()

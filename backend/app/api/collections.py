@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.database import get_session
-from app.core.security import CurrentUser
+from app.core.security import CurrentUser, CurrentUserFromAny
 from app.models import Collection, Document
 
 router = APIRouter(prefix="/collections", tags=["collections"])
@@ -32,6 +32,7 @@ class CollectionUpdate(BaseModel):
 @router.get("")
 async def list_collections(
     session: Annotated[AsyncSession, Depends(get_session)],
+    _user: CurrentUserFromAny,
 ):
     stmt = (
         select(Collection, func.count(Document.id).label("doc_count"))
