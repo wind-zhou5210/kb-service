@@ -14,6 +14,8 @@ export const useAuth = create<AuthState>((set) => ({
     set({ token: t })
   },
   logout: () => {
+    // 清除服务端会话 cookie（供 iframe 子资源使用），静默失败即可
+    import('../api/client').then((m) => m.api.logoutSession().catch(() => {}))
     localStorage.removeItem('kb_token')
     set({ token: null })
     // 清空业务缓存，防止换账号后残留旧数据

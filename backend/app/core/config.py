@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 天
     admin_username: str = "admin"
     admin_password: str = "admin123"  # 仅 MVP 默认值，生产务必修改
+    # 会话 cookie 是否要求 HTTPS（生产应为 true；本地 http 开发需设 KB_COOKIE_SECURE=false）
+    cookie_secure: bool = True
 
     # 存储
     storage_dir: Path = Path("/data/files")

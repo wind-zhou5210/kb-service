@@ -99,6 +99,12 @@ export const api = {
     client.post<{ access_token: string }>('/auth/login', new URLSearchParams({ username, password }))
       .then((r) => r.data),
 
+  /** 用当前凭据补种会话 cookie（iframe 子资源与同源下载依赖它）；幂等，失败静默 */
+  establishSession: () => client.post('/auth/session'),
+
+  /** 清除服务端会话 cookie（前端同时清本地 token） */
+  logoutSession: () => client.post('/auth/logout'),
+
   listCollections: () =>
     client.get<Collection[]>('/collections').then((r) => r.data),
 
