@@ -307,7 +307,13 @@ export function registerWorkspaceCommands(program: Command): void {
         const client = getClient();
         const form = new FormData();
         form.append('file', fs.createReadStream(zipPath), path.basename(zipPath));
-        const { data } = await client.post<{ count: number }>(
+        const { data } = await client.post<{
+          count: number;
+          added: number;
+          updated: number;
+          removed: number;
+          unchanged: number;
+        }>(
           `/api/workspaces/${id}/upload`,
           form,
           {
@@ -320,7 +326,9 @@ export function registerWorkspaceCommands(program: Command): void {
             ),
           }
         );
-        spinner.succeed(`上传完成：写入 ${data.count ?? 0} 个文件`);
+        spinner.succeed(
+          `更新完成：共 ${data.count ?? 0} 个文件（新增 ${data.added ?? 0} · 更新 ${data.updated ?? 0} · 删除 ${data.removed ?? 0} · 未变 ${data.unchanged ?? 0}）`
+        );
       } catch (err: any) {
         spinner.fail(err.message);
         process.exit(1);

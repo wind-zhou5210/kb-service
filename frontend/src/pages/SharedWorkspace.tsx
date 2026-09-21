@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Spin, Skeleton, message, Drawer, Button } from 'antd'
-import { FolderOutlined, LockOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined, DownloadOutlined } from '@ant-design/icons'
+import { FolderOutlined, LockOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MenuOutlined, DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import { api, type Workspace, type WorkspaceTreeNode } from '../api/client'
 import { formatSize } from '../utils/format'
 import WorkspaceTree from '../components/WorkspaceTree'
@@ -20,6 +20,8 @@ export default function SharedWorkspace() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  // 刷新内容：递增后强制重载当前文件（同路径也生效，用于内容被更新后）
+  const [refreshKey, setRefreshKey] = useState(0)
   const [mdContent, setMdContent] = useState('')
   const [htmlSrc, setHtmlSrc] = useState('')
   const [contentLoading, setContentLoading] = useState(false)
@@ -62,9 +64,9 @@ export default function SharedWorkspace() {
       const fileParam = new URLSearchParams(window.location.search).get('file')
       if (fileParam && hasFile(treeData, fileParam)) {
         setSelectedFile(fileParam)
-      } else if (!selectedFile && treeData.length > 0) {
-        const first = findFirstFile(treeData)
-        if (first) setSelectedFile(first)
+      } else if (treeData.length > 0) {
+        // URL 中的文件已不存在（如内容更新后删除）：回退第一个，避免空白预览
+        setSelectedFile(findFirstFile(treeData) ?? null)
       }
     } catch {
       setError(true)
@@ -104,7 +106,7 @@ export default function SharedWorkspace() {
       setMdContent('')
       setContentLoading(false)
     }
-  }, [selectedFile, token, fileAnchor])
+  }, [selectedFile, token, fileAnchor, refreshKey])
 
   // MD 文件内锚点：内容渲染完成后滚动到目标标题（rehype-slug 已为标题生成 id）
   useEffect(() => {
@@ -213,6 +215,14 @@ export default function SharedWorkspace() {
           <LockOutlined /> 只读分享
         </span>
         <div style={{ flex: 1 }} />
+        <Button
+          size="small"
+          icon={<ReloadOutlined />}
+          loading={loading}
+          onClick={() => { setRefreshKey(k => k + 1); load() }}
+        >
+          刷新内容
+        </Button>
         <Button
           size="small"
           icon={<DownloadOutlined />}
