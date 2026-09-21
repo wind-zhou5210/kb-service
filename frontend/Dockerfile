@@ -1,9 +1,11 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
-# 配置 npm 淘宝镜像源加速安装
-RUN npm config set registry https://registry.npmmirror.com
-RUN npm ci
+# npm 源可通过构建参数覆盖：
+# - 默认国内镜像（本地/生产构建加速）
+# - CI（GitHub 海外 runner）传官方源，避免跨国访问成为构建瓶颈
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+RUN npm config set registry ${NPM_REGISTRY} && npm ci
 COPY . .
 RUN npm run build
 

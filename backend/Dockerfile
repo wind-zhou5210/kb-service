@@ -10,10 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-# 配置国内 PyPI 镜像源（阿里云）加速 pip install
+# PyPI 源可通过构建参数覆盖：
+# - 默认国内源（本地/生产构建加速）
+# - CI（GitHub 海外 runner）传官方源，避免跨国访问成为构建瓶颈
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
 RUN pip install --no-cache-dir -r requirements.txt \
-    -i https://mirrors.aliyun.com/pypi/simple/ \
-    --trusted-host mirrors.aliyun.com
+    -i ${PIP_INDEX_URL} \
+    --trusted-host ${PIP_TRUSTED_HOST}
 
 COPY . .
 
