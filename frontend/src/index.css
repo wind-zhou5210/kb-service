@@ -905,3 +905,33 @@ body {
   .ant-tree-treenode { min-height: 44px; align-items: center; }
   .app-header button { min-width: 44px; min-height: 44px; }
 }
+
+/* CLI 授权模式提示条（登录页） */
+.login-cli-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  border: 1px solid var(--subtle-border, #DCD9CE);
+  border-left: 3px solid var(--accent, #3A5BD9);
+  background: var(--subtle-bg, #EEECE4);
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.login-cli-notice strong {
+  font-size: 14px;
+  color: var(--ink-900, #1E1D1A);
+}
+
+.login-cli-notice span {
+  color: var(--ink-600, #4F4D45);
+}
+
+.login-error-text {
+  margin-top: 12px;
+  color: var(--danger, #b93a32);
+  font-size: 13px;
+}

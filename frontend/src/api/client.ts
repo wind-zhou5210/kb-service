@@ -15,10 +15,14 @@ client.interceptors.request.use((config) => {
 })
 
 // 响应拦截：401 跳登录
+// 例外：CLI 授权端点的 401 表示「本次输入的凭据错误」，而非网页会话失效——
+// 若一并清除本地 token，已登录用户给 CLI 授权时输错一次密码就会被静默登出
 client.interceptors.response.use(
   (resp) => resp,
   (err) => {
-    if (err.response?.status === 401) {
+    const isCliAuthorize =
+      String(err.config?.url || '').split('?')[0] === '/auth/cli/authorize'
+    if (err.response?.status === 401 && !isCliAuthorize) {
       localStorage.removeItem('kb_token')
       if (window.location.pathname !== '/login') {
         window.location.href = '/login'
@@ -104,6 +108,27 @@ export const api = {
 
   /** 清除服务端会话 cookie（前端同时清本地 token） */
   logoutSession: () => client.post('/auth/logout'),
+
+  /** CLI 浏览器授权：校验凭据后取得携带一次性授权码的回调地址 */
+  cliAuthorize: (payload: {
+    username: string
+    password: string
+    redirect_uri: string
+    code_challenge: string
+    state: string
+  }) =>
+    client
+      .post<{ redirect: string }>(
+        '/auth/cli/authorize',
+        new URLSearchParams({
+          username: payload.username,
+          password: payload.password,
+          redirect_uri: payload.redirect_uri,
+          code_challenge: payload.code_challenge,
+          state: payload.state,
+        }),
+      )
+      .then((r) => r.data),
 
   listCollections: () =>
     client.get<Collection[]>('/collections').then((r) => r.data),
