@@ -86,7 +86,7 @@
 | # | 功能 | 说明 |
 |---|------|------|
 | 7 | **目录同步 `kb sync`** | 将本地目录同步到集合或工作空间：新增上传、变更覆盖、本地已删除的远程可选删除（`--prune`）。工作空间侧可基于 tree + sha1 差异实现 |
-| 8 | **浏览器登录** | 实现 `BrowserAuthProvider`（架构已预留）：`kb login` 打开浏览器 → 后端回调 → 自动获取 token。需后端新增 `/api/auth/cli/callback` |
+| ~~8~~ | ~~**浏览器登录**~~ ✅ 已完成（授权码 + PKCE + 本机回环回调，`kb login` 默认浏览器授权） | ~~实现 `BrowserAuthProvider`（架构已预留 ）：`kb login` 打开浏览器 → 后端回调 → 自动获取 token。需后端新增 `/api/auth/cli/callback`~~ |
 | 9 | **`kb watch`** | 监听文件/目录变化自动 push，类似 nodemon |
 | 10 | **Shell 自动补全** | `kb completion bash/zsh/fish/powershell` |
 | 11 | **项目级配置文件** | 项目目录下 `.kbconfig` 记录默认集合/工作空间 ID，省去每次传 `-c`（环境变量注入已完成，此项为文件级） |
@@ -115,7 +115,7 @@
 | 20 | 新增工作空间文件重命名/移动端点 | `workspaces.py` | P1 #4 |
 | 21 | 新增文档资产列表端点 | `documents.py` | P1 #5 |
 | 22 | 搜索端点补分页与过滤参数 | `search.py` | P3 #17 |
-| 23 | 新增 `GET /api/auth/cli/callback` 为浏览器登录做准备 | `auth.py` | P2 #8 |
+| ~~23~~ | ~~新增 `GET /api/auth/cli/callback` 为浏览器登录做准备~~ ✅ 浏览器登录已改用 `POST /auth/cli/authorize` + `POST /auth/cli/token` 实现 | `auth.py` | — |
 
 ---
 
