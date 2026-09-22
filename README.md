@@ -121,7 +121,7 @@ push 到 `main` 分支时，GitHub Actions 自动执行：
 ## CLI 工具
 
 ```bash
-# 安装（npm 已发布 v0.2.0）
+# 安装（npm 已发布 v0.3.0）
 npm install -g kb-service-cli
 
 # 快速上手
