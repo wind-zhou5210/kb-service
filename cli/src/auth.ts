@@ -149,16 +149,6 @@ function promptCredentialsWindows(
   });
 }
 
-/*
- * 未来扩展（架构预留）：
- *
- * export class BrowserAuthProvider implements AuthProvider {
- *   async login(): Promise<string> {
- *     // 打开浏览器 → 回调 localhost → 换取 JWT
- *   }
- * }
- */
-
 export function logout(): void {
   const cfg = loadConfig();
   delete cfg.token;

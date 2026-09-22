@@ -20,7 +20,7 @@ program
 ┌─────────────── 快速开始 ───────────────┐
 │                                         │
 │  $ kb config set server <url>           │
-│  $ kb login admin                       │
+│  $ kb login                             │
 │  $ kb push ./doc.md -c <集合ID>         │
 │  $ kb push ./prd.zip -c <集合ID>        │
 │  $ kb search "关键词"                   │
@@ -47,7 +47,10 @@ program
 ─────────── 常用示例 ───────────
   # 首次配置
   $ kb config set server https://kb.example.com
-  $ kb login admin
+  $ kb login                          # 浏览器授权（推荐）
+
+  # 密码登录（脚本/CI）
+  $ kb login admin -p <密码>
 
   # 知识集合与文档
   $ kb col list                       # 查看集合

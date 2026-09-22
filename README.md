@@ -126,7 +126,7 @@ npm install -g kb-service-cli
 
 # 快速上手
 kb config set server https://kb.example.com
-kb login admin
+kb login                         # 浏览器授权登录
 kb push ./doc.md -c 1            # 单文档
 kb push ./prd.zip -c 1           # 文档包（md + 图片资产，自动识别）
 kb search "关键词"
@@ -137,7 +137,9 @@ kb ws tree 1 --filter todo       # 目录树 / 查文件
 kb ws share 1 --file todo.html   # 文件级直链
 ```
 
-**40 条命令**覆盖集合、文档、文档包、版本、工作空间、分享全链路；所有列表/详情支持 `--json`；支持 `KB_SERVER` / `KB_TOKEN` / `KB_USERNAME` 环境变量与 `kb login -p` 非交互登录（CI/CD 友好）。
+**40 条命令**覆盖集合、文档、文档包、版本、工作空间、分享全链路；所有列表/详情支持 `--json`；支持 `KB_SERVER` / `KB_TOKEN` / `KB_USERNAME` 环境变量。
+
+- 登录：`kb login` 默认打开浏览器完成授权（授权码 + PKCE）；也支持 `kb login <用户名> -p <密码>` 与 `KB_TOKEN` 环境变量（CI 场景）
 
 详见 [cli/README.md](cli/README.md)，功能规划见 [cli/ROADMAP.md](cli/ROADMAP.md)。
 
@@ -228,9 +230,10 @@ node dist/index.js --help    # 直接运行
 - [x] CLI 全面功能对齐（17 → 40 条命令，含工作空间命令组与非交互登录，v0.2.0）
 - [x] 工作空间安全整包更新（内容版本目录 + 原子指针切换，分享链接不变）
 - [x] 读接口鉴权（会话 cookie 兼容 iframe 子资源，分享链接保持免登录）
+- [x] CLI 浏览器授权登录（授权码 + PKCE + 本机回环回调）
 - [ ] CI/CD 增加自动化测试 step
 - [ ] 语雀文档批量导出迁移工具
 - [ ] 登录系统升级（手机验证码登录）
 - [ ] 引入向量知识库（ChromaDB）
 - [ ] RAG 化改造（语义检索 + LLM 对话）
-- [ ] CLI：目录同步 `kb sync`、浏览器登录、Shell 补全、多 profile
+- [ ] CLI：目录同步 `kb sync`、Shell 补全、多 profile
