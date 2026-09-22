@@ -80,18 +80,41 @@ docker compose up -d --build
 ### 生产环境部署（推荐）
 
 ```bash
-# 一键部署：自动生成 JWT 密钥、从阿里云 ACR 拉取预构建镜像
+# 一键部署：自动生成 JWT 密钥、本地构建镜像并启动
 ./deploy.sh
 ```
 
+> **首次部署提示**：镜像在服务器本地构建，首次需拉取基础镜像（`python:3.11-slim`
+> / `node:22-alpine` / `nginx:alpine`）。国内服务器建议先配置 Docker 镜像加速器
+> （见下方），否则拉取会很慢；配好后仅需拉取一次，后续走本地缓存。
+
 数据持久化在 `./data/`（原文 + SQLite）。环境变量模板见 `.env.example`。
+
+#### Docker 镜像加速器（国内服务器建议）
+
+```bash
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json <<'EOF'
+{
+  "registry-mirrors": ["https://<你的加速器地址>.mirror.aliyuncs.com"]
+}
+EOF
+sudo systemctl daemon-reload && sudo systemctl restart docker
+```
+
+加速器地址：阿里云控制台 → 容器镜像服务 → 镜像工具 → 镜像加速器（也可用公共加速器，如 `https://docker.m.daocloud.io`）。
 
 ### CI/CD 自动部署
 
 push 到 `main` 分支时，GitHub Actions 自动执行：
-1. 前端构建校验 + 后端语法检查
-2. Docker 构建前后端镜像，推送到阿里云 ACR（`provenance: false`，兼容 ACR 个人版）
-3. SSH 到服务器拉取最新镜像并重启服务
+1. 前端构建校验 + 后端语法检查（CI 侧快速失败，不占用服务器）
+2. 同步源码到服务器（约几百 KB）
+3. SSH 触发服务器本地构建镜像并重启服务
+
+> **为什么不用镜像仓库**：CI 运行在 GitHub 海外 runner，向国内镜像仓库推送镜像属
+> 跨境大流量传输，链路不稳时会卡死在推送阶段（实测同一环节从 9.6 秒恶化到 30 分钟
+> 零进展，无法通过配置改善）。改为服务器本地构建后全程无跨境大流量，部署不再依赖
+> 跨境链路质量。
 
 详见 [CI/CD 部署文档](docs/cicd-solutions.md)，[实施计划](docs/plans/2026-06-23-cicd-acr-deploy.md)。
 

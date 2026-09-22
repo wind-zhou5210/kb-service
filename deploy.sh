@@ -61,9 +61,12 @@ else
     log_info ".env 已存在，跳过生成。"
 fi
 
-# ---------- 4. 拉取镜像并启动 ----------
-log_info "从阿里云 ACR 拉取镜像..."
-$COMPOSE_CMD -f docker-compose.prod.yml pull
+# ---------- 4. 本地构建镜像并启动 ----------
+# 说明：镜像在服务器本地构建，不从远程仓库拉取。
+# 首次构建需拉取基础镜像（python:3.11-slim / node:22-alpine / nginx:alpine），
+# 建议先配置 Docker 镜像加速器（见 README 或部署文档）。
+log_info "本地构建镜像..."
+$COMPOSE_CMD -f docker-compose.prod.yml build
 
 log_info "启动服务..."
 $COMPOSE_CMD -f docker-compose.prod.yml up -d --remove-orphans

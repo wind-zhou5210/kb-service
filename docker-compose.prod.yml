@@ -1,6 +1,16 @@
+# 生产部署 compose：镜像在服务器本地构建（不使用远程镜像仓库）
+#
+# 为什么不用远程镜像仓库：
+# CI 运行在 GitHub 海外 runner，向阿里云 ACR（杭州）推送镜像属跨境大流量传输，
+# 跨境链路不稳时会在 pushing layers 阶段长时间零进展并导致流水线超时
+# （实测同一环节从 9.6 秒恶化到 30 分钟零进展，无法通过任何配置改善）。
+# 现改为：CI 只同步源码 → 服务器本地构建 → 直接启动，全程无跨境大流量。
+
 services:
   backend:
-    image: registry.cn-hangzhou.aliyuncs.com/wind-zhou/brilliant:backend-latest
+    build:
+      context: ./backend
+    image: kb-backend:local
     container_name: kb-backend
     volumes:
       - ./data/files:/data/files
@@ -11,7 +21,9 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: registry.cn-hangzhou.aliyuncs.com/wind-zhou/brilliant:frontend-latest
+    build:
+      context: ./frontend
+    image: kb-frontend:local
     container_name: kb-frontend
     ports:
       - "8000:80"

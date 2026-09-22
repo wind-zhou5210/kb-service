@@ -1,13 +1,11 @@
 FROM python:3.11-slim
 WORKDIR /app
 
-# 配置国内 Debian 镜像源（阿里云）加速 apt-get
-RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
-    sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
-
-# 系统依赖
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+# 说明：原 apt-get update/install 步骤已移除——
+# 1) install 未指定任何包名，实际不安装系统依赖；
+# 2) 其 Debian 源被改指国内镜像，在 GitHub 海外 runner 上属跨国慢链路，
+#    是构建耗时的主要来源之一。
+# 若后续确需系统依赖，请显式列出包名，并通过 ARG 控制源（CI 用官方源）。
 
 COPY requirements.txt .
 # PyPI 源可通过构建参数覆盖：

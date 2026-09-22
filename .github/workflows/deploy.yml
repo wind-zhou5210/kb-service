@@ -4,10 +4,6 @@ on:
   push:
     branches: [main]
 
-env:
-  REGISTRY: registry.cn-hangzhou.aliyuncs.com
-  IMAGE: registry.cn-hangzhou.aliyuncs.com/wind-zhou/brilliant
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -18,7 +14,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ===== 阶段 2: 前置校验 =====
+      # ===== 阶段 2: 前置校验（在 CI 侧快速失败，不占用服务器） =====
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -29,7 +25,7 @@ jobs:
       - name: Build Frontend (CI 校验)
         run: |
           cd frontend
-          npm config set registry https://registry.npmmirror.com
+          npm config set registry https://registry.npmjs.org
           npm ci
           npm run build
 
@@ -41,80 +37,45 @@ jobs:
       - name: Lint Backend (CI 校验)
         run: |
           cd backend
-          pip install -r requirements.txt \
-            -i https://mirrors.aliyun.com/pypi/simple/ \
-            --trusted-host mirrors.aliyun.com
+          pip install -r requirements.txt -i https://pypi.org/simple/
           python -m py_compile app/main.py
 
-      # ===== 阶段 3: 构建并推送镜像 =====
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to ACR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-
-      - name: Build and Push Backend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          push: true
-          # ACR 个人版不识别 buildx 默认附加的 provenance attestation 清单
-          # （推送报 denied: unknown manifest class for application/vnd.oci.empty.v1+json）
-          provenance: false
-          # GitHub Actions 层缓存：requirements.txt 与 pip install 层可复用，
-          # 避免每次在全新 runner 上从零安装依赖（无缓存时易撞 20 分钟上限）
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
-          # GitHub 海外 runner 直接访问国内镜像属跨国链路（实测单次构建 >24 分钟），
-          # 故 CI 改用官方源；Dockerfile 默认值仍为国内源（本地/生产构建）
-          build-args: |
-            PIP_INDEX_URL=https://pypi.org/simple/
-            PIP_TRUSTED_HOST=pypi.org
-          tags: |
-            ${{ env.IMAGE }}:backend-latest
-            ${{ env.IMAGE }}:backend-${{ github.sha }}
-
-      - name: Build and Push Frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          provenance: false
-          # 同上：复用 npm ci 层缓存
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
-          # 同上：CI 用官方 npm 源
-          build-args: |
-            NPM_REGISTRY=https://registry.npmjs.org
-          tags: |
-            ${{ env.IMAGE }}:frontend-latest
-            ${{ env.IMAGE }}:frontend-${{ github.sha }}
-
-      # ===== 阶段 4: 服务器部署 =====
-      # 先把仓库中的 compose 文件同步到服务器，避免服务器本地文件与仓库漂移
-      - name: Sync compose file to server
+      # ===== 阶段 3: 同步源码到服务器 =====
+      # 架构说明：镜像构建在服务器本地执行，CI 不再构建与推送镜像。
+      # 原方案（海外 runner 构建 → 跨境推送阿里云 ACR → 服务器拉取）在跨境网络
+      # 不稳时会卡死在 pushing layers——实测同一环节从 9.6 秒恶化到 30 分钟零进展，
+      # 且镜像全量约 300MB（解压）/ 80-100MB（压缩），不适合跨国传输。
+      # 现改为只同步源码（体积约几百 KB），由国内服务器本地构建，全程无跨境大流量。
+      - name: Sync source to server
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           port: ${{ secrets.SSH_PORT }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          source: docker-compose.prod.yml
+          source: "backend/,frontend/,docker-compose.prod.yml"
           target: /root/kb-service/
+          # 排除构建产物与本地文件，避免覆盖服务器上的 .env / 数据
+          exclude: "**/node_modules/**,**/dist/**,**/__pycache__/**,**/*.pyc,**/.env,**/.env.*,**/.git/**"
+          overwrite: true
 
-      - name: Deploy via SSH
+      # ===== 阶段 4: 服务器本地构建并重启 =====
+      - name: Build and Deploy on server
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           port: ${{ secrets.SSH_PORT }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          # 服务器本地构建耗时取决于机器性能，给足余量
+          command_timeout: 20m
           script: |
+            set -e
             cd /root/kb-service
-            docker compose -f docker-compose.prod.yml pull
+            echo "=== 本地构建镜像 ==="
+            docker compose -f docker-compose.prod.yml build
+            echo "=== 重启服务 ==="
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
+            echo "=== 当前状态 ==="
+            docker compose -f docker-compose.prod.yml ps
