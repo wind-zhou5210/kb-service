@@ -40,38 +40,34 @@ jobs:
           pip install -r requirements.txt -i https://pypi.org/simple/
           python -m py_compile app/main.py
 
-      # ===== 阶段 3: 同步源码到服务器 =====
-      # 架构说明：镜像构建在服务器本地执行，CI 不再构建与推送镜像。
-      # 原方案（海外 runner 构建 → 跨境推送阿里云 ACR → 服务器拉取）在跨境网络
-      # 不稳时会卡死在 pushing layers——实测同一环节从 9.6 秒恶化到 30 分钟零进展，
-      # 且镜像全量约 300MB（解压）/ 80-100MB（压缩），不适合跨国传输。
-      # 现改为只同步源码（体积约几百 KB），由国内服务器本地构建，全程无跨境大流量。
-      - name: Sync source to server
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          port: ${{ secrets.SSH_PORT }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          source: "backend/,frontend/,docker-compose.prod.yml"
-          target: /root/kb-service/
-          # 排除构建产物与本地文件，避免覆盖服务器上的 .env / 数据
-          exclude: "**/node_modules/**,**/dist/**,**/__pycache__/**,**/*.pyc,**/.env,**/.env.*,**/.git/**"
-          overwrite: true
-
-      # ===== 阶段 4: 服务器本地构建并重启 =====
-      - name: Build and Deploy on server
+      # ===== 阶段 3: 服务器拉取源码并本地构建 =====
+      # 为何由服务器主动拉取：
+      # CI 运行在 GitHub 海外 runner，向国内服务器传输源码属跨境上行链路——
+      # 实测同一操作从 44 秒恶化到 18 分钟未完成（与推镜像同源的跨境瓶颈）。
+      # 改为：服务器主动下载 GitHub 归档（跨境下行通常更稳定，且带重试），
+      # CI 仅做 SSH 触发（小数据）。镜像在服务器本地构建，不再有任何跨境大流量。
+      - name: Pull source and build on server
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           port: ${{ secrets.SSH_PORT }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          # 服务器本地构建耗时取决于机器性能，给足余量
-          command_timeout: 20m
+          # 下载 + 构建 + 重启的总预算（构建耗时取决于服务器性能）
+          command_timeout: 25m
           script: |
             set -e
             cd /root/kb-service
+            echo "=== 下载源码 ${{ github.sha }} ==="
+            curl -fsSL --retry 3 --retry-delay 5 --max-time 300 \
+              -o /tmp/kb-src.tar.gz \
+              "https://github.com/${{ github.repository }}/archive/${{ github.sha }}.tar.gz"
+            rm -rf /tmp/kb-src && mkdir -p /tmp/kb-src
+            tar xzf /tmp/kb-src.tar.gz -C /tmp/kb-src --strip-components=1
+            echo "=== 同步源码（保留服务器上的 .env 与 data 目录）==="
+            cp -rf /tmp/kb-src/backend/. backend/
+            cp -rf /tmp/kb-src/frontend/. frontend/
+            cp -f /tmp/kb-src/docker-compose.prod.yml .
             echo "=== 本地构建镜像 ==="
             docker compose -f docker-compose.prod.yml build
             echo "=== 重启服务 ==="
