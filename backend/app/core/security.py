@@ -45,6 +45,15 @@ def _decode_subject(token: str | None) -> str | None:
         return None
 
 
+def verify_token(token: str | None) -> str | None:
+    """校验 JWT 并返回 subject；无效/过期返回 None。
+
+    供无法使用依赖注入的场景复用：例如凭据放在 URL 路径中
+    （sandbox iframe 内的子资源请求既无 header 也不带 cookie）。
+    """
+    return _decode_subject(token)
+
+
 def _token_from(bearer: str | None, jwt_query: str | None, cookie: str | None) -> str | None:
     """按优先级提取凭据：Authorization header > ?jwt= > 会话 cookie。"""
     if bearer and bearer.startswith("Bearer "):

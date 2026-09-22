@@ -39,6 +39,7 @@ from app.core.security import (
     CurrentUserFromAny,
     CurrentUserFromQuery,
     CurrentUserOptional,
+    verify_token,
 )
 from app.models import Workspace, WorkspaceFile
 from app.services.render import rewrite_md_images as _rewrite_md_images
@@ -847,25 +848,18 @@ async def download_workspace_zip(
     )
 
 
-@router.get("/{ws_id}/serve/{path:path}")
-async def serve_workspace_file(
-    ws_id: int,
+def _render_workspace_file(
+    ws: Workspace,
     path: str,
-    session: Annotated[AsyncSession, Depends(get_session)],
-    _user: CurrentUserFromAny,
-    render: str | None = Query(None),
-):
-    """提供工作空间内文件内容。
+    render: str | None,
+    serve_prefix: str,
+) -> Response:
+    """读取并返回工作空间文件（多个入口共用）。
 
-    支持三种凭据（任一有效即可）：Authorization header（前端 fetch / CLI）、
-    ?jwt= 查询参数（iframe 主文档无法带 header）、会话 cookie（iframe 内
-    CSS/JS/图片等子资源与同源下载——浏览器自动发起，无法带前述凭据）。
-    对 .md 文件传入 ?render=md 时会自动重写相对图片路径为绝对 URL。
+    serve_prefix 为该入口的前缀（如 /api/workspaces/1/serve/ 或
+    /api/workspaces/1/s/{token}/），决定 md 图片重写的基准地址，
+    使图片引用在对应入口下能正确解析。
     """
-    ws = await session.get(Workspace, ws_id)
-    if not ws:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "工作空间不存在")
-
     safe_path = _safe_join(_content_root(ws), path)
     if not os.path.isfile(safe_path):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "文件不存在")
@@ -879,7 +873,6 @@ async def serve_workspace_file(
     if path.lower().endswith(".md") and render == "md":
         text = content.decode("utf-8", errors="replace")
         file_dir = os.path.dirname(path)
-        serve_prefix = f"/api/workspaces/{ws_id}/serve/"
         text = _rewrite_md_images(text, serve_prefix, file_dir)
         content = text.encode("utf-8")
 
@@ -888,6 +881,60 @@ async def serve_workspace_file(
         content=content,
         media_type=mime_type,
         headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get("/{ws_id}/serve/{path:path}")
+async def serve_workspace_file(
+    ws_id: int,
+    path: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    _user: CurrentUserFromAny,
+    render: str | None = Query(None),
+):
+    """提供工作空间内文件内容（凭据经 header / ?jwt= / cookie）。
+
+    用于前端 fetch 取 md 正文、CLI 与 iframe 主文档加载。
+    注意：iframe 内的子资源（CSS/JS/图片）不能依赖本入口——
+    sandbox 文档为 opaque origin，发出的请求不构成同源，既不携带 cookie，
+    也无法附加 header/query，需改用路径携带凭据的 /s/{token}/ 入口。
+
+    对 .md 文件传入 ?render=md 时会自动重写相对图片路径为绝对 URL。
+    """
+    ws = await session.get(Workspace, ws_id)
+    if not ws:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "工作空间不存在")
+    return _render_workspace_file(ws, path, render, f"/api/workspaces/{ws_id}/serve/")
+
+
+@router.get("/{ws_id}/s/{token}/{path:path}")
+async def serve_workspace_file_with_token(
+    ws_id: int,
+    token: str,
+    path: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    render: str | None = Query(None),
+):
+    """提供工作空间文件内容（凭据嵌入 URL 路径）。
+
+    为什么需要这个入口：iframe sandbox="allow-scripts"（不含 allow-same-origin）
+    内文档的 origin 是 opaque，其中所有请求（含 CSS/JS/图片等子资源）
+    都不构成同源——浏览器不会携带 cookie，标签本身也无法附加 header/query。
+    把凭据放在路径前缀上，HTML 内的相对引用会天然继承该前缀，从而完整覆盖
+    CSS 内嵌 url()、JS 动态请求等「无法通过重写 HTML 解决」的场景。
+
+    凭据校验规则与 ?jwt= 一致（常规 JWT），校验失败返回 401。
+    """
+    if verify_token(token) is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="未登录或登录已过期，请重新登录",
+        )
+    ws = await session.get(Workspace, ws_id)
+    if not ws:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "工作空间不存在")
+    return _render_workspace_file(
+        ws, path, render, f"/api/workspaces/{ws_id}/s/{token}/"
     )
 
 

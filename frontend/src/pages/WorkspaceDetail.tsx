@@ -110,11 +110,27 @@ export default function WorkspaceDetail() {
     const handler = (e: CustomEvent) => {
       const path = e.detail
       if (typeof path === 'string') {
-        // Extract relative path from the iframe's URL
+        // iframe 内导航上报的路径有两种形态：
+        // ① /api/workspaces/{id}/s/{token}/sub/page.html   当前入口（凭据在路径）
+        // ② /api/workspaces/{id}/serve/sub/page.html      兼容旧形态
+        const tokenPrefix = `/api/workspaces/${wsId}/s/`
         const servePrefix = `/api/workspaces/${wsId}/serve/`
-        if (path.includes(servePrefix)) {
-          const filePath = path.split(servePrefix)[1]
-          if (filePath) setSelectedFile(decodeURIComponent(filePath))
+        let rawPath: string | undefined
+        if (path.includes(tokenPrefix)) {
+          // 剥离 /s/{token}/ 前缀：token 段之后才是文件路径
+          const rest = path.split(tokenPrefix)[1] || ''
+          const slash = rest.indexOf('/')
+          rawPath = slash >= 0 ? rest.slice(slash + 1) : ''
+        } else if (path.includes(servePrefix)) {
+          rawPath = path.split(servePrefix)[1]
+        }
+        if (rawPath) {
+          // 剥离锚点与查询串，只保留文件相对路径
+          const clean = rawPath.split('#')[0].split('?')[0]
+          if (clean) {
+            try { setSelectedFile(decodeURIComponent(clean)) }
+            catch { setSelectedFile(clean) }
+          }
         }
       }
     }
@@ -142,8 +158,13 @@ export default function WorkspaceDetail() {
         .then(text => { setMdContent(text); setHtmlSrc('') })
         .finally(() => setContentLoading(false))
     } else {
-      // HTML: set iframe src with JWT（附 v 参数，替换后同路径也能重新加载 iframe）
-      setHtmlSrc(`/api/workspaces/${wsId}/serve/${selectedFile}?jwt=${encodeURIComponent(token)}&v=${viewerVersion}`)
+      // HTML：凭据嵌入 URL 路径后加载。
+      // 为何不用 ?jwt=：iframe 为 sandbox="allow-scripts"（无 allow-same-origin），
+      // 内文档 origin 为 opaque，其子资源请求（CSS/JS/图片）既不携带 cookie
+      // 也不能附加 header/query；凭据放在路径前缀上才能被相对引用天然继承，
+      // 完整覆盖 CSS 内嵌 url()、JS 动态请求等场景。
+      const encodedFile = selectedFile.split('/').map(encodeURIComponent).join('/')
+      setHtmlSrc(`/api/workspaces/${wsId}/s/${encodeURIComponent(token)}/${encodedFile}?v=${viewerVersion}`)
       setMdContent('')
       setContentLoading(false)
     }
