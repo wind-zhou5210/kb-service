@@ -18,8 +18,8 @@ npm install -g kb-service-cli
 # 1. 配置服务端地址
 kb config set server https://kb.example.com
 
-# 2. 登录
-kb login admin
+# 2. 登录（打开浏览器完成授权）
+kb login
 
 # 3. 上传文档（.md/.html 单文件，.zip 文档包自动识别）
 kb push ./doc.md -c 1
@@ -37,7 +37,7 @@ kb ws share 1 --file todo.html
 
 | 分组 | 命令 | 说明 |
 |------|------|------|
-| 认证 | `login` | 登录 kb-service（支持 `-p` 非交互） |
+| 认证 | `login` | 登录 kb-service（默认浏览器授权；`-p` 非交互） |
 | | `logout` | 退出登录（清除本地令牌） |
 | | `whoami` | 查看当前用户并校验令牌有效性 |
 | 配置 | `config set` | 设置 server / token / username |
@@ -101,12 +101,35 @@ kb config get
 kb config unset token
 ```
 
-### 认证
+### 登录
+
+默认使用**浏览器授权**（无需在终端输入密码）：
 
 ```bash
-kb login                      # 交互式输入用户名与密码
-kb login admin                # 交互输入密码
-kb login admin -p secret      # 非交互登录（脚本）
+kb config set server http://<你的服务地址>:8000
+kb login
+```
+
+命令会在浏览器打开本服务的登录页，登录完成后终端自动完成登录（令牌保存在 `~/.kbconfig.json`）。
+本机无图形环境（如纯 SSH）时可只打印链接、手动在能上网的设备打开：
+
+```bash
+kb login --print-url
+```
+
+脚本与 CI 场景仍可用密码登录或环境变量：
+
+```bash
+kb login admin -p <密码>                     # 密码登录
+export KB_SERVER=http://... KB_TOKEN=<jwt>   # 完全免登录（推荐用于 CI）
+```
+
+> 授权流程说明：`kb login` 会在本机 `127.0.0.1` 的随机端口临时启动回调服务，
+> 用一次性授权码 + PKCE 换取令牌；**令牌不会出现在任何 URL 中**，仅保存在你本机。
+
+查看登录状态与退出：
+
+```bash
 kb whoami                     # 查看当前用户并校验令牌是否有效
 kb logout                     # 退出登录
 ```
